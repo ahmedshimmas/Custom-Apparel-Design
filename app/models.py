@@ -21,8 +21,9 @@ class User(AbstractUser):
 
 
     #profile model
-    profile_picture = models.ImageField(upload_to='resume/profile_pictures', blank=True, null=True)
-    full_name = models.CharField(max_length=50, blank=True, null=True)
+    profile_picture = models.ImageField(upload_to='user/profile_pictures', blank=True, null=True)
+    first_name = models.CharField(max_length=50, blank=True, null=True)
+    last_name = models.CharField(max_length=50, blank=True, null=True)
 
     #shipping_address
     street_addr = models.TextField(null=True, blank=True)
@@ -77,6 +78,9 @@ class Product(models.Model):
     size = models.CharField(max_length=3, choices=ProductSize.choices, default=ProductSize.SMALL)
     color = models.CharField(blank=True, null=True)
 
+    quantity = models.PositiveIntegerField(default=1)
+    price = models.PositiveIntegerField()
+
     def __str__(self):
         return f'Product {self.id} - User: {self.user.id}'
 
@@ -89,7 +93,6 @@ class Order(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
 
     order_id = models.CharField(max_length=8, blank=True, null=True, unique=True)
-    quantity = models.PositiveIntegerField(default=1)
     payment = models.CharField(max_length=12, choices=PaymentStatus.choices, default=PaymentStatus.UNPAID)
     status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PROCESSING)
     is_active = models.BooleanField(default=True)

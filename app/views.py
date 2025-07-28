@@ -16,7 +16,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
 from project import settings
 from django.core.mail import send_mail
-from django.db.models import Sum
+from django.db.models import Sum, F
 
 User = get_user_model()
 
@@ -245,21 +245,62 @@ class AdminDashboardViewset(viewsets.ViewSet):
             order_date__month=timezone.now().month,
             order_date__year=timezone.now().year,
             is_active=True
-        ).aggregate(total=Sum('product__price'))['total'] or 0 #the ['total'] here returns only the value of variable total we declared in aggregate, without this ['total'] the whole dictionary will be returned rather than just the value, etc {'total': 123} will be returned rather than just 123
+            ).aggregate(total = Sum('product__price'))['total'] or 0 #the ['total'] here returns only the value of variable total we declared in aggregate, without this ['total'] the whole dictionary will be returned rather than just the value, etc {'total': 123} will be returned rather than just 123
 
+        new_apparel_designs = models.Product.objects.filter(created_at__gte=timezone.now().month).count()
         active_orders = models.Order.objects.filter(is_active=True).count()
-        cancelled_orders = models.Order.objects.filter(status='Cancelled').count()
-        recent_orders = models.Order.objects.filter(is_active=True).order_by('-order_date')[:5]
+
+        payments_received = models.Order.objects.filter(
+            status='Completed'
+            ).aggregate(
+                total_payments = Sum('product__price'))['total_payments'] or 0
         
+        new_customers = models.User.objects.filter(created_at__gte=timezone.now().month).count()
+        cancelled_orders = models.Order.objects.filter(status='Cancelled').count()
+
         return Response(
             {
             'monthly_revenue': monthly_revenue,
-            'active_orders_count': active_orders,
-            'cancelled_orders_count': cancelled_orders,
-            'recent_orders': serializers.OrderSerializer(recent_orders, many=True).data,
+            'new_apparel_designs': new_apparel_designs,
+            'active_orders': active_orders,
+            'payments_received': payments_received,
+            'new_customers': new_customers,
+            'cancelled_orders': cancelled_orders
+
             }, 
             status=status.HTTP_200_OK
         )
+
+#order revenue
+class OrderRevenueAdminDashboardView(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    http_method_names = ['get']
+
+    def list(self, request):
+        filter = request.query_params.get('filter', '1M')
+        today = timezone.now().date()
+
+        if filter == '1M':
+            start_date = today - timedelta(days=30)
+        elif filter == '3M':
+            start_date = today - timedelta(days=60)
+        elif filter == '6M':
+            start_date = today - timedelta(days=180)
+        elif filter == '1Y':
+            start_date =  today - timedelta(days=365)
+        else:
+            start_date = None
+        
+        query = models.Order.objects.filter(order_date__gte = start_date) if start_date else models.Order.objects.all()
+        revenue = query.aggregate(
+            total = F('product__price') * F('product__quantity')
+        )['revenue'] or 0
+                
+        return Response(
+            {
+                'order_revenue': revenue
+            }
+        )    
 
 
 #recent orders api in dashboard
@@ -276,4 +317,6 @@ class RecentOrderAdminDashboardView(viewsets.ViewSet):
         }, 
         status=status.HTTP_200_OK
         )
+
+
 
