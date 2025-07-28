@@ -3,7 +3,7 @@ from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import CreateModelMixin
 from rest_framework import viewsets
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.decorators import action
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
@@ -16,6 +16,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
 from project import settings
 from django.core.mail import send_mail
+from django.db.models import Sum
 
 User = get_user_model()
 
@@ -69,14 +70,6 @@ class UserViewset(GenericViewSet, CreateModelMixin):
         serializer_class = serializers.PasswordResetSerializer,
         url_path='reset-password-request'
     )
-    # def password_request(self, request):
-    #     serializer = self.get_serializer(data=request.data)
-    #     serializer.is_valid(raise_exception=True)
-    #     serializer.save()
-    #     return Response(
-    #         {'detail': f'otp sent to {request.data['email']}. please check your email for otp.'}, 
-    #         status=status.HTTP_200_OK
-    #         )
     def reset_password_request(self, request, *args, **kwargs):
         serializer = serializers.PasswordResetSerializer(data=request.data)
         if serializer.is_valid():
@@ -111,15 +104,6 @@ class UserViewset(GenericViewSet, CreateModelMixin):
         serializer_class = serializers.PasswordResetConfirmSerializer,
         url_path='reset-password'
     )
-    # def reset_password(self, request):
-    #     user = get_object_or_404(models.User, email=request.data['email'])
-    #     serializer = self.get_serializer(user,data=request.data)
-    #     serializer.is_valid(raise_exception=True)
-    #     serializer.save()
-    #     return Response(
-    #         {'detail': 'password changed. please login with your new password'},
-    #         status=status.HTTP_200_OK
-    #         )
     def reset_password(self, request, *args, **kwargs):
         serializer = serializers.PasswordResetConfirmSerializer(data=request.data)
         if serializer.is_valid():
@@ -232,17 +216,64 @@ class UserViewset(GenericViewSet, CreateModelMixin):
 class ProductViewset(viewsets.ModelViewSet):
     queryset = models.Product.objects.all()
     serializer_class = serializers.ProductSerializer
-    permission_classes = []
 
     def get_queryset(self):
         if self.request.user.is_authenticated:
             return self.queryset.filter(user=self.request.user)
 
-# class ShippingInformation(viewsets.ModelViewSet):
-#     queryset = models.ShippingInformation.objects.all()
-#     serializer_class = serializers.ShippingInformationSerializer
-#     permission_classes = [IsAuthenticated]
 
-#     def get_queryset(self):
-#         if self.request.user.is_authenticated:
-#             return self.queryset.filter(user=self.request.user)
+class OrderViewset(viewsets.ModelViewSet):
+    queryset = models.Order.objects.all()
+    serializer_class = serializers.OrderSerializer
+
+
+
+#admin dashboard
+class AdminDashboardViewset(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    http_method_names = ['get']
+
+    def list(self, request):
+        if not request.user.is_staff:
+            return Response(
+                {'detail': 'You do not have permission to access this resource.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Calculate monthly revenue
+        monthly_revenue = models.Order.objects.filter(
+            order_date__month=timezone.now().month,
+            order_date__year=timezone.now().year,
+            is_active=True
+        ).aggregate(total=Sum('product__price'))['total'] or 0 #the ['total'] here returns only the value of variable total we declared in aggregate, without this ['total'] the whole dictionary will be returned rather than just the value, etc {'total': 123} will be returned rather than just 123
+
+        active_orders = models.Order.objects.filter(is_active=True).count()
+        cancelled_orders = models.Order.objects.filter(status='Cancelled').count()
+        recent_orders = models.Order.objects.filter(is_active=True).order_by('-order_date')[:5]
+        
+        return Response(
+            {
+            'monthly_revenue': monthly_revenue,
+            'active_orders_count': active_orders,
+            'cancelled_orders_count': cancelled_orders,
+            'recent_orders': serializers.OrderSerializer(recent_orders, many=True).data,
+            }, 
+            status=status.HTTP_200_OK
+        )
+
+
+#recent orders api in dashboard
+class RecentOrderAdminDashboardView(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    http_method_names = ['get']
+
+    def list(self, request):
+        recent_orders = models.Order.objects.filter(is_active=True).order_by('-order_date')[:5]
+        serializer = serializers.OrderSerializer(recent_orders, many=True)
+        return Response(
+        {
+        'recent_orders': serializer.data,
+        }, 
+        status=status.HTTP_200_OK
+        )
+

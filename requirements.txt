@@ -15,7 +15,7 @@ drf-spectacular==0.28.0
 drf-writable-nested==0.7.2
 drf_link_header_pagination==0.2.0
 psycopg==3.2.9
-dotenv
+python-dotenv
 django-environ==0.12.0
 twilio==9.6.2
 

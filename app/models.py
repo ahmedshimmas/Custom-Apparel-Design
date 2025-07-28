@@ -70,9 +70,10 @@ class Product(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='products')
 
     #upload your art work
-    design = models.FileField(upload_to='product/', null=True, blank=True)
+    apparel = models.CharField(max_length=10, choices=ApparelType.choices, default=ApparelType.TSHIRT)
+    design_type = models.FileField(upload_to='product/', choices=ProductDesignType.choices, default=ProductDesignType.AI_GENERATED, null=True, blank=True)
     text = models.CharField(blank=True, null=True)
-    style = models.CharField(max_length=2, choices=ProductStyle.choices, default=ProductStyle.EMBROIDARY)
+    print_method = models.CharField(max_length=2, choices=ProductStyle.choices, default=ProductStyle.EMBROIDARY)
     size = models.CharField(max_length=3, choices=ProductSize.choices, default=ProductSize.SMALL)
     color = models.CharField(blank=True, null=True)
 
@@ -81,3 +82,32 @@ class Product(models.Model):
 
 
 #ask frontend about My Orders page, what data will he handle, and what we will
+
+class Order(models.Model):  
+
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+
+    order_id = models.CharField(max_length=8, blank=True, null=True, unique=True)
+    quantity = models.PositiveIntegerField(default=1)
+    payment = models.CharField(max_length=12, choices=PaymentStatus.choices, default=PaymentStatus.UNPAID)
+    status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PROCESSING)
+    is_active = models.BooleanField(default=True)
+    order_date = models.DateField(auto_now_add=True)
+
+    def __str__(self):
+        return f'Order {self.id} - {self.user.full_name}'
+
+    def save(self, *args, **kwargs):
+        if not self.order_id:
+            last_order = Order.objects.filter('id').last()
+            if last_order and last_order.order_id:
+                try:
+                    last_id = int(last_order.order_id.split('-')[1])
+                except:
+                    last_id = 100
+            else:
+                last_id = 100
+            new_id = last_id + 1
+            self.order_id = f'A-{new_id}'
+        return super().save(*args, **kwargs)

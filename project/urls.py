@@ -18,11 +18,14 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenBlacklistView
-from app.views import UserViewset, ProductViewset
+from app.views import *
 
 router = DefaultRouter()
 router.register(r'user', UserViewset, basename='user-auth')
 router.register(r'products', ProductViewset, basename='products')
+router.register(r'orders', OrderViewset, basename='orders')
+router.register(r'dashboard', AdminDashboardViewset, basename='dashboard')
+router.register(r'dashboard-recent-orders', RecentOrderAdminDashboardView, basename='recent-orders')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

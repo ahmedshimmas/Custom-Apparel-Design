@@ -188,9 +188,34 @@ class ProductSerializer(serializers.ModelSerializer):
         model = models.Product
         fields = [
             'user', 
-            'design',
+            'apparel',
+            'design_type',
             'text',
-            'style',
+            'print_method',
             'size',
             'color',
             ]
+
+class OrderSerializer(serializers.ModelSerializer):
+    design_type = serializers.CharField(source='product.design_type', read_only=True)
+    apparel = serializers.CharField(source='product.apparel', read_only=True)
+    color = serializers.CharField(source='product.color', read_only=True)
+    print_method = serializers.CharField(source='product.print_method', read_only=True)
+
+    class Meta:
+        model = models.Order
+        fields = [
+            'customer',
+            'product',
+            'order_id',
+            'quantity',
+            'payment',
+            'status',
+            'order_date',
+            'design_type',
+            'apparel',
+            'color',
+            'print_method'
+        ]
+        read_only_fields = ['order_id']
+    

@@ -16,11 +16,22 @@ class ProductStyle(TextChoices):
     EMBROIDARY = 'em', 'EMBROIDARY'
     PRINT = 'pr', 'PRINT'
 
-class ProductColor(TextChoices):
-    BLACK = 'blck', 'BLACK'
-    BROWN = 'brn', 'BROWN'
-    PURPLE = 'pp', 'PURPLE'
-    BLUE = 'bl', 'BLUE'
-    CYAN = 'cy', 'CYAN'
-    GREEN = 'gr', 'GREEN'
-    RED = 'rd', 'RED'
+class ApparelType(TextChoices):
+    TSHIRT = 'T-SHIRT', 'T-SHIRT'
+    POLO_SHIRT = 'POLO', 'POLO'
+    SWEAT_SHIRT = 'SHIRT', 'SHIRT'
+    CAP = 'CAP', 'CAP'
+    HOODIE = 'HOODIE', 'HOODIE'
+
+class ProductDesignType(TextChoices):
+    AI_GENERATED =  'AI-GENERATED', 'AI-GENERATED'
+    CUSTOM_DESIGN = 'CUSTOM-DESIGN', 'CUSTOM-DESIGN'
+
+class PaymentStatus(TextChoices):
+    PAID = 'Paid', 'PAID'
+    UNPAID = 'Unpaid', 'UNPAID'
+
+class OrderStatus(TextChoices):
+    PROCESSING = 'Processing'
+    COMPLETED = 'Completed'
+    CANCELLED = 'Cancelled'
