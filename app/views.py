@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.mixins import CreateModelMixin
+from rest_framework.mixins import CreateModelMixin, ListModelMixin
 from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
@@ -16,6 +16,7 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
 from project import settings
 from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.db.models import Sum, F
 
 User = get_user_model()
@@ -28,7 +29,6 @@ class UserViewset(GenericViewSet, CreateModelMixin):
     queryset = models.User.objects.none()
     serializer_class = serializers.UserSerializer
     http_method_names = ['post']
-    permission_classes = []
 
     @action(
         detail=False,
@@ -86,16 +86,38 @@ class UserViewset(GenericViewSet, CreateModelMixin):
             token = default_token_generator.make_token(user)
 
             reset_url = f"{settings.frontend_url}/forgot/{uid}/{token}"
-            send_mail(
-                "Password Reset",
-                f"Click the following link to reset your password: {reset_url}",
+            subject = 'PASSWORD RESET REQUESET - CAD'
+
+            message = f"""\
+                            <html>
+                            <body>
+                                <p>
+                                Hi {user.username},<br>
+                                Click the following link to reset your <b>password</b>:<br>
+                                <a href="{reset_url}">{reset_url}</a>
+                                </p>
+                                <p>
+                                <strong>Regards,<br>CAD Admin</strong>
+                                </p>
+                            </body>
+                            </html>
+            """
+
+            
+            email_message = EmailMultiAlternatives(
+                subject,
+                message,
                 settings.EMAIL_HOST_USER,
-                [email],
-                fail_silently=False,
+                [email]
             )
+
+            email_message.attach_alternative(message, "text/html")
+            email_message.send()
+
             return Response(
                 {"success": "Password reset link sent"}, status=status.HTTP_200_OK
             )
+        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(
@@ -174,24 +196,6 @@ class UserViewset(GenericViewSet, CreateModelMixin):
             {'detail': 'user profile patched successfully'},
             status = status.HTTP_200_OK
             )
-
-
-    @action(
-        detail=False,
-        methods=['post'],
-        serializer_class=serializers.PatchUserShippingSerializer,
-        permission_classes=[IsAuthenticated],
-        url_path='patch-shipping'
-    )
-    def patch_shipping(self, request):
-        user = User.objects.get(id=request.user.id)
-        serializer = self.get_serializer(user, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(
-            {'detail': 'user shipping patched successfully'},
-            status = status.HTTP_200_OK
-            )
     
 
     @action(
@@ -213,19 +217,42 @@ class UserViewset(GenericViewSet, CreateModelMixin):
 
 
 
-class ProductViewset(viewsets.ModelViewSet):
-    queryset = models.Product.objects.all()
-    serializer_class = serializers.ProductSerializer
+class UserDashboardViewset(viewsets.ModelViewSet):
+    queryset = models.UserDashboard.objects.all()
+    serializer_class = serializers.UserDashboardSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        if self.request.user.is_authenticated:
-            return self.queryset.filter(user=self.request.user)
+        if self.request.user.role == "admin":
+            return super().get_queryset()
+        else:
+            return models.UserDashboard.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        return serializer.save(user=self.request.user)
+
+
+
+
+class UserPortfolioViewset(GenericViewSet, ListModelMixin):
+    serializer_class = serializers.UserDashboardSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return models.UserDashboard.objects.filter(user=self.request.user)
+
+
 
 
 class OrderViewset(viewsets.ModelViewSet):
     queryset = models.Order.objects.all()
     serializer_class = serializers.OrderSerializer
 
+    def get_queryset(self):
+        if self.request.user.role == "admin":
+            return super().get_queryset()
+        else:
+            return models.Order.objects.filter(user=self.request.user)
 
 
 #admin dashboard
@@ -318,5 +345,8 @@ class RecentOrderAdminDashboardView(viewsets.ViewSet):
         status=status.HTTP_200_OK
         )
 
-
+class PricingRuleViewSet(viewsets.ModelViewSet):
+    queryset = models.PricingRules.objects.all()
+    serializer_class = serializers.PricingRulesSerializer
+    permission_classes = [IsAdminUser]
 

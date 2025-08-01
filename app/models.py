@@ -12,25 +12,18 @@ class User(AbstractUser):
 
     #register model
     role = models.CharField(choices=UserRoleChoices.choices, max_length=6, default=UserRoleChoices.USER)
+    first_name = models.CharField(max_length=50)
+    last_name = models.CharField(max_length=50)
+    phone_number = models.CharField(max_length=15)
     email = models.EmailField(_('Email'), unique=True, error_messages={'email': 'email must be unique'})
     password = models.CharField(max_length=128)
-    phone_number = models.CharField(max_length=15)
     consent = models.BooleanField(default=False)
     otp = models.CharField(max_length=6, blank=True, null=True)
     otp_expiry = models.DateTimeField(blank=True, null=True)
 
-
     #profile model
     profile_picture = models.ImageField(upload_to='user/profile_pictures', blank=True, null=True)
-    first_name = models.CharField(max_length=50, blank=True, null=True)
-    last_name = models.CharField(max_length=50, blank=True, null=True)
-
-    #shipping_address
-    street_addr = models.TextField(null=True, blank=True)
-    city = models.CharField(max_length=128, null=True, blank=True)
-    postal_code = models.IntegerField(null=True, blank=True)
-    province_state = models.CharField(max_length=128, null=True, blank=True)  
-    country = models.CharField(max_length=50, null=True, blank=True)
+    country = models.CharField(max_length=50, blank=True, null=True)
 
     #notification settings
     order_confirmation_email = models.BooleanField(default=False, null=True, blank=True)
@@ -64,25 +57,138 @@ class User(AbstractUser):
         return self.username
 
 
-class Product(models.Model):
 
-    #ask frontend which fields do we need to save and return
+
+class ApparelProduct(models.Model):
+
+    product_name = models.CharField(max_length=50)
+    sizes_available = models.CharField(max_length=5, choices=ProductSizes.choices, default=ProductSizes.MEDIUM)
+    color_options = models.CharField(max_length=100)
+    print_methods_supported = models.CharField(max_length=10, choices=ProductPrintMethods.choices, default=ProductPrintMethods.EMBROIDARY)
+    description = models.TextField()
+    upload_image = models.ImageField(upload_to='admin/product/thumbnails/')
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.product_name
+
+
+
+
+class PricingRules(models.Model):
+
+    product_name = models.OneToOneField(ApparelProduct, on_delete=models.CASCADE, related_name='pricing_rule')
+    base_price = models.DecimalField(max_digits=6, decimal_places=2)
+
+    ai_design_cost = models.DecimalField(max_digits=6, decimal_places=2, default=2.00)
+    custom_design_upload_cost = models.DecimalField(max_digits=6, decimal_places=2, default=1.00)
+    print_cost = models.DecimalField(max_digits=6, decimal_places=2, default=8.00)
+
+    def __str__(self):
+        return f'{self.product_name} - {self.base_price}'
+
+
+
+
+class UserDesign(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='products')
 
     #upload your art work
-    apparel = models.CharField(max_length=10, choices=ApparelType.choices, default=ApparelType.TSHIRT)
-    design_type = models.FileField(upload_to='product/', choices=ProductDesignType.choices, default=ProductDesignType.AI_GENERATED, null=True, blank=True)
-    text = models.CharField(blank=True, null=True)
-    print_method = models.CharField(max_length=2, choices=ProductStyle.choices, default=ProductStyle.EMBROIDARY)
-    size = models.CharField(max_length=3, choices=ProductSize.choices, default=ProductSize.SMALL)
-    color = models.CharField(blank=True, null=True)
+    product = models.ForeignKey(ApparelProduct, on_delete=models.CASCADE, related_name='user_designs')
+    design_type = models.CharField(max_length=10, choices=UserDesignType.choices, default=UserDesignType.AI_GENERATED)
+    prompt = models.TextField(blank=True, null=True)
+    image = models.ImageField(upload_to='user/product-design/images/')
+    created_at = models.DateTimeField(auto_now_add=True)
 
-    quantity = models.PositiveIntegerField(default=1)
-    price = models.PositiveIntegerField()
+    is_draft = models.BooleanField(default=False)
+
+
+    def calculate_price(self):
+
+        pricing_rule = self.product.pricing_rule
+        cost = pricing_rule.base_price + pricing_rule.print_cost
+        
+        if self.design_type == 'ai':
+            cost += pricing_rule.ai_design_cost
+        else:
+            cost += pricing_rule.custom_design_upload_cost
+        
+        return cost
+
 
     def __str__(self):
         return f'Product {self.id} - User: {self.user.id}'
+
+
+
+
+class ShippingAddress(models.Model):
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='shipping_address')
+
+    full_name = models.CharField(max_length=69)
+    phone_number = models.CharField(max_length=15)
+    email = models.EmailField(unique=True)
+    street_address = models.TextField()
+    city = models.CharField(max_length=128)
+    postal_code = models.CharField(max_length=10)
+    province_state = models.CharField(max_length=69)  
+    country = models.CharField(max_length=50)
+
+    is_default = models.BooleanField(default=False)
+
+    
+    def save(self, *args, **kwargs):
+        
+        #set the first address as default automatically
+        if not ShippingAddress.objects.filter(user=self.user).exists():
+            self.is_default = True
+
+        #if user sets another address as default, then update the previous default address and change it to is_default=False automatically
+        if self.is_default:
+            ShippingAddress.objects.filter(user=self.user, is_default=True).exclude(pk=self.pk).update(is_default=False)
+            #we used .exclude here because without it the current instance we are trying we set as default will also be fetched and updated as false, so we exclude the current object from this query
+
+        return super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f'User {self.user.get_full_name()} Shipping Address'
+
+
+
+
+class BillingAdress(models.Model):
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='billing_address')
+
+    full_name = models.CharField(max_length=69)
+    phone_number = models.CharField(max_length=15)
+    email = models.EmailField(unique=True)
+    street_address = models.TextField()
+    city = models.CharField(max_length=128)
+    postal_code = models.CharField(max_length=10)
+    province_state = models.CharField(max_length=69)  
+    country = models.CharField(max_length=50)
+
+    is_default = models.BooleanField(default=False)
+
+    
+    def save(self, *args, **kwargs):
+        
+        if not BillingAdress.objects.filter(user=self.user).exists():
+            self.is_default = True
+
+        if self.is_default:
+            BillingAdress.objects.filter(user=self.user, is_default=True).exclude(pk=self.pk).update(is_default=False)
+
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'User {self.user.get_full_name()} Billing Address'
+
 
 
 #ask frontend about My Orders page, what data will he handle, and what we will
@@ -90,13 +196,15 @@ class Product(models.Model):
 class Order(models.Model):  
 
     customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    product = models.ForeignKey(UserDashboard, on_delete=models.CASCADE, related_name='orders')
 
     order_id = models.CharField(max_length=8, blank=True, null=True, unique=True)
     payment = models.CharField(max_length=12, choices=PaymentStatus.choices, default=PaymentStatus.UNPAID)
     status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PROCESSING)
     is_active = models.BooleanField(default=True)
     order_date = models.DateField(auto_now_add=True)
+
+    quantity = models.PositiveIntegerField(default=1)
 
     def __str__(self):
         return f'Order {self.id} - {self.user.full_name}'
@@ -114,3 +222,15 @@ class Order(models.Model):
             new_id = last_id + 1
             self.order_id = f'A-{new_id}'
         return super().save(*args, **kwargs)
+
+class PricingRules(models.Model):
+    
+    #price per product
+    product_name = models.CharField(max_length=10, choices=ApparelType.choices)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    screen_printing = 5
+
+
+    def __str__(self):
+        return f"{self.product_name} = ${self.price}"   

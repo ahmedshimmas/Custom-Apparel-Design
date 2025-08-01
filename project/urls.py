@@ -22,10 +22,13 @@ from app.views import *
 
 router = DefaultRouter()
 router.register(r'user', UserViewset, basename='user-auth')
-router.register(r'products', ProductViewset, basename='products')
+router.register(r'user-dashboard', UserDashboardViewset, basename='user-dashboard')
+router.register(r'user-portfolio', UserPortfolioViewset, basename='user-portfolio')
 router.register(r'orders', OrderViewset, basename='orders')
-router.register(r'dashboard', AdminDashboardViewset, basename='dashboard')
-router.register(r'dashboard-recent-orders', RecentOrderAdminDashboardView, basename='recent-orders')
+router.register(r'admin-dashboard', AdminDashboardViewset, basename='dashboard')
+router.register(r'dashboard-order-revenue', AdminDashboardViewset, basename='dashboard-order-revenue')
+router.register(r'dashboard-recent-orders', RecentOrderAdminDashboardView, basename='dashboard-recent-orders')
+router.register(r'pricing-rules', PricingRuleViewSet, basename='pricing-rules')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

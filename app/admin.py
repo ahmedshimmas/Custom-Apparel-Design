@@ -6,6 +6,7 @@ admin.site.register(
     [
         models.User,
         models.Product,
+        models.Order
         # models.ShippingInformation
     ]
 )

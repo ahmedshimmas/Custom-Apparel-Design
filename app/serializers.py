@@ -45,7 +45,10 @@ class UserSerializer(serializers.ModelSerializer):
         user.save()
         send_welcome_otp.delay(user.id)
         return user
-    
+
+
+
+
 class ResendOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
@@ -63,10 +66,15 @@ class ResendOTPSerializer(serializers.Serializer):
                 )
     
 
+
+
 class VerifyOTPSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['email', 'otp']
+
+
+
 
 # class ResetPasswordRequestSerializer(serializers.Serializer):
     
@@ -105,14 +113,23 @@ class VerifyOTPSerializer(serializers.ModelSerializer):
 #         instance.save()
 #         return instance
 
+
+
+
+
 class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
+
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
     uidb64 = serializers.CharField()
     token = serializers.CharField()
     new_password = serializers.CharField()
+
+
+
 
 class ChangePasswordSerializer(serializers.ModelSerializer):
     current_password = serializers.CharField()
@@ -144,31 +161,75 @@ class ChangePasswordSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+
+
+
+class ShippingAdressSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.ShippingAddress
+        fields = '__all__'
+
+
+
+
 class PatchUserProfileSerializer(serializers.ModelSerializer):
+
+    new_email = serializers.EmailField(write_only=True, required = False)
+    new_phone = serializers.CharField(write_only=True, required = False)
+    new_first_name = serializers.CharField(write_only=True, required = False)
+    new_last_name = serializers.CharField(write_only=True, required = False)
+    shipping_address = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
             'profile_picture',
-            'first_name',
-            'last_name',
-            'email',
-            'phone_number'
+            'new_first_name',
+            'new_last_name',
+            'new_email',
+            'new_phone'
         ]
+    
+    def get_shipping_address(self, instance):
 
-class PatchUserShippingSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = [
-            'first_name',
-            'last_name',
-            'email',
-            'phone_number',
-            'street_addr',
-            'city',
-            'postal_code',
-            'province_state',
-            'country'
-        ]
+        default = models.ShippingAddress.objects.filter(user=self.context['request'].user, is_default=True).first() #returns an instance or None
+
+        if default:
+            return {
+                'full_name': default.full_name,
+                'phone_number': default.phone_number,
+                'email': default.email,
+                'street_address': default.street_address,
+                'city': default.city,
+                'postal_code': default.postal_code,
+                'province_state': default.province_state,
+                'country': default.country
+            }
+        return None
+
+
+    def update(self, instance, validated_data):
+
+        updatable_fields = {
+            'new_first_name': 'first_name',
+            'new_last_name': 'last_name',
+            'new_email': 'email',
+            'new_phone_number': 'phone_number',
+            'new_country': 'country'
+        }
+
+        for new_fields, model_fields in updatable_fields.items():
+            new_value = validated_data.pop(new_fields, None)
+            if new_value is not None:
+                setattr(instance, model_fields, new_value)
+        
+        instance.save()
+        
+        return super().update(instance, validated_data)
+
+
+
 
 class PatchUserNotificationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -183,7 +244,8 @@ class PatchUserNotificationSerializer(serializers.ModelSerializer):
 
 
 
-class ProductSerializer(serializers.ModelSerializer):
+
+class UserDashboardSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Product
         fields = [
@@ -193,8 +255,12 @@ class ProductSerializer(serializers.ModelSerializer):
             'text',
             'print_method',
             'size',
-            'color',
+            'color'
             ]
+        read_only_fields = ['user']
+
+
+
 
 class OrderSerializer(serializers.ModelSerializer):
     design_type = serializers.CharField(source='product.design_type', read_only=True)
@@ -218,4 +284,12 @@ class OrderSerializer(serializers.ModelSerializer):
             'print_method'
         ]
         read_only_fields = ['order_id']
-    
+
+
+
+
+class PricingRulesSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.PricingRules
+        fields = '__all__'
