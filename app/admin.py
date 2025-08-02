@@ -5,8 +5,12 @@ from app import models
 admin.site.register(
     [
         models.User,
-        models.Product,
+        models.ApparelProduct,
+        models.PricingRules,
+        models.Size,
+        models.UserDesign,
+        models.ShippingAddress,
+        models.BillingAddress,
         models.Order
-        # models.ShippingInformation
     ]
 )

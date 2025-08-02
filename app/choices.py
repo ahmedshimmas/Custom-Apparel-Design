@@ -12,11 +12,11 @@ class ProductSizes(TextChoices):
     LARGE = 'L', 'LARGE'
     EXTRA_LARGE = 'XL', 'EXTRA_LARGE'
     EXTRA_EXTRA_LARGE = 'XXL', 'EXTRA_EXTRA_LARGE'
-
+    ONE_SIZE = 'ONE_SIZE', 'ONE_SIZE'
 
 class ProductPrintMethods(TextChoices):
     EMBROIDARY = 'em', 'EMBROIDARY'
-    SCREEN_PRINTING = 'pr', 'PRINT'
+    SCREEN_PRINTING = 'spr', 'SCREEN_PRINTING'
     BOTH = 'b', 'BOTH'
 
 
@@ -25,12 +25,18 @@ class UserDesignType(TextChoices):
     CUSTOM_DESIGN = 'custom', 'CUSTOM-DESIGN'
 
 
-class ApparelType(TextChoices):
-    TSHIRT = 'T-SHIRT', 'T-SHIRT'
-    POLO_SHIRT = 'POLO', 'POLO'
-    SWEAT_SHIRT = 'SHIRT', 'SHIRT'
-    CAP = 'CAP', 'CAP'
-    HOODIE = 'HOODIE', 'HOODIE'
+class OrderStatus(TextChoices):
+    PROCESSING = 'Processing', 'PROCESSING'
+    COMPLETED = 'Completed', 'COMPLETED'
+    CANCELLED = 'Cancelled', 'CANCELLED'
+
+
+class OrderTrackingStatus(TextChoices):
+    ORDER_PLACED = 'placed', 'ORDER_PLACED'
+    ORDER_PACKED = 'packed', 'ORDER_PACKED'
+    IN_TRANSIT = 'transit', 'IN_TRANSIT'
+    OUT_FOR_DELIVERY = 'delivery', 'OUT_FOR_DELIVERY'
+    DELIVERED = 'delivered', 'DELIVERED'
 
 
 class PaymentStatus(TextChoices):
@@ -38,14 +44,3 @@ class PaymentStatus(TextChoices):
     UNPAID = 'Unpaid', 'UNPAID'
 
 
-class OrderStatus(TextChoices):
-    PROCESSING = 'Processing'
-    COMPLETED = 'Completed'
-    CANCELLED = 'Cancelled'
-
-
-class DesignType(TextChoices):
-    SIMPLE_AI_DESIGN = 'simple_aid', 'SIMPLE_AI_DESIGN'
-    COMPLEX_AI_DESIGN = 'complex_aid', 'COMPLEX_AI_DESIGN'
-    UPLOAD_VECTOR_FILE = 'upload_vf', 'UPLOAD_VECTOR_FILE'
-    UPLOAD_PNG_JPG = 'upload_png', 'UPLOAD_PNG_JPG'

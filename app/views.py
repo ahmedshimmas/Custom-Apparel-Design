@@ -18,6 +18,8 @@ from project import settings
 from django.core.mail import send_mail
 from django.core.mail import EmailMultiAlternatives
 from django.db.models import Sum, F
+from .pagination import CustomPagination
+from app import permissions
 
 User = get_user_model()
 
@@ -88,16 +90,16 @@ class UserViewset(GenericViewSet, CreateModelMixin):
             reset_url = f"{settings.frontend_url}/forgot/{uid}/{token}"
             subject = 'PASSWORD RESET REQUESET - CAD'
 
-            message = f"""\
+            message = f"""
                             <html>
                             <body>
                                 <p>
-                                Hi {user.username},<br>
-                                Click the following link to reset your <b>password</b>:<br>
-                                <a href="{reset_url}">{reset_url}</a>
+                                    Hi {user.username},<br>
+                                    Click the following link to reset your <strong>password</strong>:<br>
+                                    <a href="{reset_url}">{reset_url}</a>
                                 </p>
                                 <p>
-                                <strong>Regards,<br>CAD Admin</strong>
+                                    <strong>Regards,<br>CAD Admin</strong>
                                 </p>
                             </body>
                             </html>
@@ -193,7 +195,10 @@ class UserViewset(GenericViewSet, CreateModelMixin):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(
-            {'detail': 'user profile patched successfully'},
+            {
+                'detail': 'user profile patched successfully',
+                'data': serializer.data
+            },
             status = status.HTTP_200_OK
             )
     
@@ -217,136 +222,207 @@ class UserViewset(GenericViewSet, CreateModelMixin):
 
 
 
-class UserDashboardViewset(viewsets.ModelViewSet):
-    queryset = models.UserDashboard.objects.all()
-    serializer_class = serializers.UserDashboardSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        if self.request.user.role == "admin":
-            return super().get_queryset()
-        else:
-            return models.UserDashboard.objects.filter(user=self.request.user)
-    
-    def perform_create(self, serializer):
-        return serializer.save(user=self.request.user)
-
-
-
-
-class UserPortfolioViewset(GenericViewSet, ListModelMixin):
-    serializer_class = serializers.UserDashboardSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return models.UserDashboard.objects.filter(user=self.request.user)
-
-
-
-
-class OrderViewset(viewsets.ModelViewSet):
-    queryset = models.Order.objects.all()
-    serializer_class = serializers.OrderSerializer
-
-    def get_queryset(self):
-        if self.request.user.role == "admin":
-            return super().get_queryset()
-        else:
-            return models.Order.objects.filter(user=self.request.user)
-
-
-#admin dashboard
-class AdminDashboardViewset(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated, IsAdminUser]
-    http_method_names = ['get']
-
-    def list(self, request):
-        if not request.user.is_staff:
-            return Response(
-                {'detail': 'You do not have permission to access this resource.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Calculate monthly revenue
-        monthly_revenue = models.Order.objects.filter(
-            order_date__month=timezone.now().month,
-            order_date__year=timezone.now().year,
-            is_active=True
-            ).aggregate(total = Sum('product__price'))['total'] or 0 #the ['total'] here returns only the value of variable total we declared in aggregate, without this ['total'] the whole dictionary will be returned rather than just the value, etc {'total': 123} will be returned rather than just 123
-
-        new_apparel_designs = models.Product.objects.filter(created_at__gte=timezone.now().month).count()
-        active_orders = models.Order.objects.filter(is_active=True).count()
-
-        payments_received = models.Order.objects.filter(
-            status='Completed'
-            ).aggregate(
-                total_payments = Sum('product__price'))['total_payments'] or 0
-        
-        new_customers = models.User.objects.filter(created_at__gte=timezone.now().month).count()
-        cancelled_orders = models.Order.objects.filter(status='Cancelled').count()
-
-        return Response(
-            {
-            'monthly_revenue': monthly_revenue,
-            'new_apparel_designs': new_apparel_designs,
-            'active_orders': active_orders,
-            'payments_received': payments_received,
-            'new_customers': new_customers,
-            'cancelled_orders': cancelled_orders
-
-            }, 
-            status=status.HTTP_200_OK
-        )
-
-#order revenue
-class OrderRevenueAdminDashboardView(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated, IsAdminUser]
-    http_method_names = ['get']
-
-    def list(self, request):
-        filter = request.query_params.get('filter', '1M')
-        today = timezone.now().date()
-
-        if filter == '1M':
-            start_date = today - timedelta(days=30)
-        elif filter == '3M':
-            start_date = today - timedelta(days=60)
-        elif filter == '6M':
-            start_date = today - timedelta(days=180)
-        elif filter == '1Y':
-            start_date =  today - timedelta(days=365)
-        else:
-            start_date = None
-        
-        query = models.Order.objects.filter(order_date__gte = start_date) if start_date else models.Order.objects.all()
-        revenue = query.aggregate(
-            total = F('product__price') * F('product__quantity')
-        )['revenue'] or 0
-                
-        return Response(
-            {
-                'order_revenue': revenue
-            }
-        )    
-
-
-#recent orders api in dashboard
-class RecentOrderAdminDashboardView(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated, IsAdminUser]
-    http_method_names = ['get']
-
-    def list(self, request):
-        recent_orders = models.Order.objects.filter(is_active=True).order_by('-order_date')[:5]
-        serializer = serializers.OrderSerializer(recent_orders, many=True)
-        return Response(
-        {
-        'recent_orders': serializer.data,
-        }, 
-        status=status.HTTP_200_OK
-        )
-
-class PricingRuleViewSet(viewsets.ModelViewSet):
-    queryset = models.PricingRules.objects.all()
-    serializer_class = serializers.PricingRulesSerializer
+class ApparelProductView(viewsets.ModelViewSet):
+    queryset = models.ApparelProduct.objects.all()
+    serializer_class = serializers.ApparelProductSerializer
     permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
+
+
+
+class PricingRulesView(viewsets.ModelViewSet):
+    queryset = models.PricingRules.objects.all()
+    serializer_class = serializers.PricingRuleSerializer
+    permission_classes = [IsAdminUser]
+
+
+class ApparelSizesView(viewsets.ModelViewSet):
+    queryset = models.Size.objects.all()
+    serializer_class = serializers.SizeSerializer
+    permission_classes = [IsAdminUser]
+    
+
+
+class UserDesignView(viewsets.ModelViewSet):
+    queryset = models.UserDesign.objects.all()
+    serializer_class = serializers.UserDesignSerializer
+    permission_classes = [permissions.IsOwnerOrAdmin]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return models.UserDesign.objects.all()
+        return models.UserDesign.objects.filter(user=self.request.user)
+
+
+
+class ShippingAddressView(viewsets.ModelViewSet):
+    serializer_class = serializers.ShippingAddressSerializer
+    permission_classes = [permissions.IsOwnerOrAdmin]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return models.ShippingAddress.objects.all()
+        return models.ShippingAddress.objects.filter(user=self.request.user)
+
+
+
+class BillingAddressView(viewsets.ModelViewSet):
+    serializer_class = serializers.BillingAddressSerializer
+    permission_classes = [permissions.IsOwnerOrAdmin]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return models.BillingAddress.objects.all()
+        return models.BillingAddress.objects.filter(user=self.request.user)
+
+
+
+class OrderView(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return models.Order.objects.all()
+        return models.Order.objects.filter(user=user)
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return serializers.OrderCreateSerializer
+        return serializers.OrderListSerializer
+
+
+
+# class UserDesignViewset(viewsets.ModelViewSet):
+#     queryset = models.UserDesign.objects.all()
+#     serializer_class = serializers.UserDesignSerializer
+#     permission_classes = [IsAuthenticated]
+
+#     def get_queryset(self):
+#         if self.request.user.role == "admin":
+#             return super().get_queryset()
+#         else:
+#             return models.UserDesign.objects.filter(user=self.request.user)
+    
+#     def perform_create(self, serializer):
+#         return serializer.save(user=self.request.user)
+
+
+
+
+# class UserPortfolioViewset(GenericViewSet, ListModelMixin):
+#     serializer_class = serializers.UserDesignSerializer
+#     permission_classes = [IsAuthenticated]
+
+#     def get_queryset(self):
+#         return models.UserDesign.objects.filter(user=self.request.user)
+
+
+
+
+# class OrderViewset(viewsets.ModelViewSet):
+#     queryset = models.Order.objects.all()
+#     serializer_class = serializers.OrderSerializer
+
+#     def get_queryset(self):
+#         if self.request.user.role == "admin":
+#             return super().get_queryset()
+#         else:
+#             return models.Order.objects.filter(user=self.request.user)
+
+
+# #admin dashboard
+# class AdminDashboardViewset(viewsets.ViewSet):
+#     permission_classes = [IsAuthenticated, IsAdminUser]
+#     http_method_names = ['get']
+
+#     def list(self, request):
+#         if not request.user.is_staff:
+#             return Response(
+#                 {'detail': 'You do not have permission to access this resource.'},
+#                 status=status.HTTP_403_FORBIDDEN
+#             )
+        
+#         # Calculate monthly revenue
+#         monthly_revenue = models.Order.objects.filter(
+#             order_date__month=timezone.now().month,
+#             order_date__year=timezone.now().year,
+#             is_active=True
+#             ).aggregate(total = Sum('product__price'))['total'] or 0 #the ['total'] here returns only the value of variable total we declared in aggregate, without this ['total'] the whole dictionary will be returned rather than just the value, etc {'total': 123} will be returned rather than just 123
+
+#         new_apparel_designs = models.Product.objects.filter(created_at__gte=timezone.now().month).count()
+#         active_orders = models.Order.objects.filter(is_active=True).count()
+
+#         payments_received = models.Order.objects.filter(
+#             status='Completed'
+#             ).aggregate(
+#                 total_payments = Sum('product__price'))['total_payments'] or 0
+        
+#         new_customers = models.User.objects.filter(created_at__gte=timezone.now().month).count()
+#         cancelled_orders = models.Order.objects.filter(status='Cancelled').count()
+
+#         return Response(
+#             {
+#             'monthly_revenue': monthly_revenue,
+#             'new_apparel_designs': new_apparel_designs,
+#             'active_orders': active_orders,
+#             'payments_received': payments_received,
+#             'new_customers': new_customers,
+#             'cancelled_orders': cancelled_orders
+
+#             }, 
+#             status=status.HTTP_200_OK
+#         )
+
+# #order revenue
+# class OrderRevenueAdminDashboardView(viewsets.ViewSet):
+#     permission_classes = [IsAuthenticated, IsAdminUser]
+#     http_method_names = ['get']
+
+#     def list(self, request):
+#         filter = request.query_params.get('filter', '1M')
+#         today = timezone.now().date()
+
+#         if filter == '1M':
+#             start_date = today - timedelta(days=30)
+#         elif filter == '3M':
+#             start_date = today - timedelta(days=60)
+#         elif filter == '6M':
+#             start_date = today - timedelta(days=180)
+#         elif filter == '1Y':
+#             start_date =  today - timedelta(days=365)
+#         else:
+#             start_date = None
+        
+#         query = models.Order.objects.filter(order_date__gte = start_date) if start_date else models.Order.objects.all()
+#         revenue = query.aggregate(
+#             total = F('product__price') * F('product__quantity')
+#         )['revenue'] or 0
+                
+#         return Response(
+#             {
+#                 'order_revenue': revenue
+#             }
+#         )    
+
+
+# #recent orders api in dashboard
+# class RecentOrderAdminDashboardView(viewsets.ViewSet):
+#     permission_classes = [IsAuthenticated, IsAdminUser]
+#     http_method_names = ['get']
+
+#     def list(self, request):
+#         recent_orders = models.Order.objects.filter(is_active=True).order_by('-order_date')[:5]
+#         serializer = serializers.OrderSerializer(recent_orders, many=True)
+#         return Response(
+#         {
+#         'recent_orders': serializer.data,
+#         }, 
+#         status=status.HTTP_200_OK
+#         )
+
+# class PricingRuleViewSet(viewsets.ModelViewSet):
+#     queryset = models.PricingRules.objects.all()
+#     serializer_class = serializers.PricingRuleSerializer
+#     permission_classes = [IsAdminUser]
 

@@ -6,6 +6,7 @@ from datetime import timedelta
 import random
 import string
 from django.utils.translation import gettext_lazy as _
+import uuid
 
 
 class User(AbstractUser):
@@ -62,11 +63,11 @@ class User(AbstractUser):
 class ApparelProduct(models.Model):
 
     product_name = models.CharField(max_length=50)
-    sizes_available = models.CharField(max_length=5, choices=ProductSizes.choices, default=ProductSizes.MEDIUM)
+    sizes_available = models.ManyToManyField('Size', related_name='apparel_sizes')
     color_options = models.CharField(max_length=100)
     print_methods_supported = models.CharField(max_length=10, choices=ProductPrintMethods.choices, default=ProductPrintMethods.EMBROIDARY)
     description = models.TextField()
-    upload_image = models.ImageField(upload_to='admin/product/thumbnails/')
+    upload_image = models.ImageField(upload_to='admin/product/thumbnails/', null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -75,16 +76,25 @@ class ApparelProduct(models.Model):
         return self.product_name
 
 
+class Size(models.Model):
+    name = models.CharField(max_length=20)
+
+    def __str__(self):
+        return self.name
 
 
 class PricingRules(models.Model):
 
-    product_name = models.OneToOneField(ApparelProduct, on_delete=models.CASCADE, related_name='pricing_rule')
+    product_name = models.OneToOneField(ApparelProduct, on_delete=models.SET_NULL, null=True, related_name='pricing_rule')
     base_price = models.DecimalField(max_digits=6, decimal_places=2)
 
     ai_design_cost = models.DecimalField(max_digits=6, decimal_places=2, default=2.00)
     custom_design_upload_cost = models.DecimalField(max_digits=6, decimal_places=2, default=1.00)
     print_cost = models.DecimalField(max_digits=6, decimal_places=2, default=8.00)
+
+    class Meta:
+        verbose_name = 'Pricing Rule'
+        verbose_name_plural = 'Pricing Rules'
 
     def __str__(self):
         return f'{self.product_name} - {self.base_price}'
@@ -97,21 +107,31 @@ class UserDesign(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='products')
 
     #upload your art work
-    product = models.ForeignKey(ApparelProduct, on_delete=models.CASCADE, related_name='user_designs')
+    apparel = models.ForeignKey(ApparelProduct, on_delete=models.CASCADE, related_name='user_designs')
     design_type = models.CharField(max_length=10, choices=UserDesignType.choices, default=UserDesignType.AI_GENERATED)
+
     prompt = models.TextField(blank=True, null=True)
     image = models.ImageField(upload_to='user/product-design/images/')
-    created_at = models.DateTimeField(auto_now_add=True)
 
+    font = models.CharField(max_length=30, blank=True, null=True)
+    style = models.CharField(max_length=20, choices=ProductPrintMethods.choices, default=ProductPrintMethods.EMBROIDARY)
+    shirt_size = models.CharField(max_length=20, choices=ProductSizes.choices, default=ProductSizes.SMALL)
+    color = models.CharField(max_length=30, default='black')
+
+    created_at = models.DateTimeField(auto_now_add=True)
     is_draft = models.BooleanField(default=False)
 
 
+    @property
     def calculate_price(self):
+        
+        if not hasattr(self.product, 'pricing_rule') or not self.product.pricing_rule:
+            raise ValueError(f"PricingRule not found for product ID {self.product.id}")
 
         pricing_rule = self.product.pricing_rule
         cost = pricing_rule.base_price + pricing_rule.print_cost
         
-        if self.design_type == 'ai':
+        if self.design_type == UserDesignType.AI_GENERATED:
             cost += pricing_rule.ai_design_cost
         else:
             cost += pricing_rule.custom_design_upload_cost
@@ -140,6 +160,10 @@ class ShippingAddress(models.Model):
 
     is_default = models.BooleanField(default=False)
 
+    class Meta:
+        verbose_name = 'Shipping Address'
+        verbose_name_plural = 'Shipping Address'
+
     
     def save(self, *args, **kwargs):
         
@@ -160,7 +184,7 @@ class ShippingAddress(models.Model):
 
 
 
-class BillingAdress(models.Model):
+class BillingAddress(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='billing_address')
 
@@ -175,62 +199,94 @@ class BillingAdress(models.Model):
 
     is_default = models.BooleanField(default=False)
 
-    
+
+    class Meta:
+        verbose_name = 'Billing Address'
+        verbose_name_plural = 'Billing Address'
+
     def save(self, *args, **kwargs):
         
-        if not BillingAdress.objects.filter(user=self.user).exists():
+        if not BillingAddress.objects.filter(user=self.user).exists():
             self.is_default = True
 
         if self.is_default:
-            BillingAdress.objects.filter(user=self.user, is_default=True).exclude(pk=self.pk).update(is_default=False)
+            BillingAddress.objects.filter(user=self.user, is_default=True).exclude(pk=self.pk).update(is_default=False)
 
         return super().save(*args, **kwargs)
+
 
     def __str__(self):
         return f'User {self.user.get_full_name()} Billing Address'
 
 
 
-#ask frontend about My Orders page, what data will he handle, and what we will
 
-class Order(models.Model):  
+class Order(models.Model):
 
-    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders')
-    product = models.ForeignKey(UserDashboard, on_delete=models.CASCADE, related_name='orders')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_orders')
+    user_design = models.ForeignKey(UserDesign, on_delete=models.CASCADE, related_name='design_orders')
+    shipping_address = models.OneToOneField(ShippingAddress, on_delete=models.SET_NULL, null=True, related_name='shipping_orders')
 
-    order_id = models.CharField(max_length=8, blank=True, null=True, unique=True)
-    payment = models.CharField(max_length=12, choices=PaymentStatus.choices, default=PaymentStatus.UNPAID)
-    status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PROCESSING)
-    is_active = models.BooleanField(default=True)
-    order_date = models.DateField(auto_now_add=True)
+    order_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
 
-    quantity = models.PositiveIntegerField(default=1)
+    design_type = models.CharField(max_length=20)
+    apparel = models.ForeignKey(ApparelProduct, on_delete=models.SET_NULL, null=True)
+    color = models.CharField(max_length=20) 
+    print_method = models.CharField(max_length=20) 
+    quantity = models.IntegerField(default=1)
+    date = models.DateField(auto_now_add=True)
+    payment = models.CharField(max_length=10, choices=PaymentStatus.choices, default=PaymentStatus.UNPAID)
+    order_status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PROCESSING)
+    order_tracking_status = models.CharField(max_length=20, choices=OrderTrackingStatus.choices, default=OrderTrackingStatus.ORDER_PLACED)
 
-    def __str__(self):
-        return f'Order {self.id} - {self.user.full_name}'
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_applied = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)
+    shipping_fee = models.DecimalField(max_digits=6, decimal_places=2, default=10.00)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    estimated_delivery_date = models.DateTimeField()
+
+    def calculate_price(self):
+        try:
+            pricing = self.apparel.pricing_rule
+        except PricingRules.DoesNotExist:
+            pricing = None
+
+        base_price = pricing.base_price if pricing else 0
+        ai_cost = pricing.ai_design_cost if self.design.design_type == 'ai' else 0
+        upload_cost = pricing.custom_design_upload_cost if self.design.design_type == 'upload' else 0
+        print_cost = pricing.print_cost
+
+        # Calculate price for one item
+        per_item_price = base_price + ai_cost + upload_cost + print_cost
+
+        self.subtotal = per_item_price * self.quantity
+        self.total_amount = self.subtotal - self.discount_applied + self.shipping_fee
 
     def save(self, *args, **kwargs):
-        if not self.order_id:
-            last_order = Order.objects.filter('id').last()
-            if last_order and last_order.order_id:
-                try:
-                    last_id = int(last_order.order_id.split('-')[1])
-                except:
-                    last_id = 100
-            else:
-                last_id = 100
-            new_id = last_id + 1
-            self.order_id = f'A-{new_id}'
-        return super().save(*args, **kwargs)
 
-class PricingRules(models.Model):
-    
-    #price per product
-    product_name = models.CharField(max_length=10, choices=ApparelType.choices)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+        # if not self.order_id:
+        #     last_order = Order.objects.filter('id').last()
+        #     if last_order and last_order.order_id:
+        #         try:
+        #             last_id = int(last_order.order_id.split('-')[1])
+        #         except:
+        #             last_id = 100
+        #     else:
+        #         last_id = 100
+        #     new_id = last_id + 1
+        #     self.order_id = f'A-{new_id}'
 
-    screen_printing = 5
 
+        # Auto-update order_status based on tracking status
+        if self.order_tracking_status == 'delivered':
+            self.order_status = 'completed'
+        elif self.order_status != 'cancelled':  # don't override if manually cancelled
+            self.order_status = 'processing'
+
+        self.calculate_price()
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.product_name} = ${self.price}"   
+        return f"Order #{self.pk} - {self.order_status}"

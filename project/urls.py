@@ -22,13 +22,18 @@ from app.views import *
 
 router = DefaultRouter()
 router.register(r'user', UserViewset, basename='user-auth')
-router.register(r'user-dashboard', UserDashboardViewset, basename='user-dashboard')
-router.register(r'user-portfolio', UserPortfolioViewset, basename='user-portfolio')
-router.register(r'orders', OrderViewset, basename='orders')
-router.register(r'admin-dashboard', AdminDashboardViewset, basename='dashboard')
-router.register(r'dashboard-order-revenue', AdminDashboardViewset, basename='dashboard-order-revenue')
-router.register(r'dashboard-recent-orders', RecentOrderAdminDashboardView, basename='dashboard-recent-orders')
-router.register(r'pricing-rules', PricingRuleViewSet, basename='pricing-rules')
+router.register(r'apparel-products', ApparelProductView, basename='apparel-product')
+router.register(r'apparel-sizes', ApparelSizesView, basename='apparel-sizes')
+router.register(r'pricing-rules', PricingRulesView, basename='pricing-rules')
+router.register(r'user-dashboard', UserDesignView, basename='user-dashboard')
+router.register(r'shipping-address', UserDesignView, basename='shipping-address')
+router.register(r'billing-address', UserDesignView, basename='billing-address')
+router.register(r'orders', OrderView, basename='orders')
+# #dashboard routes:
+# router.register(r'user-portfolio', UserPortfolioViewset, basename='user-portfolio')
+# router.register(r'admin-dashboard', AdminDashboardViewset, basename='dashboard')
+# router.register(r'dashboard-order-revenue', AdminDashboardViewset, basename='dashboard-order-revenue')
+# router.register(r'dashboard-recent-orders', RecentOrderAdminDashboardView, basename='dashboard-recent-orders')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
