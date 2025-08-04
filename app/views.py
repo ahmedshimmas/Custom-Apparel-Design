@@ -20,6 +20,7 @@ from django.core.mail import EmailMultiAlternatives
 from django.db.models import Sum, F
 from .pagination import CustomPagination
 from app import permissions
+from rest_framework.validators import ValidationError
 
 User = get_user_model()
 
@@ -251,7 +252,8 @@ class UserDesignView(viewsets.ModelViewSet):
     def get_queryset(self):
         if self.request.user.is_staff:
             return models.UserDesign.objects.all()
-        return models.UserDesign.objects.filter(user=self.request.user)
+        return models.UserDesign.objects.filter(user=self.request.user)           
+
 
 
 

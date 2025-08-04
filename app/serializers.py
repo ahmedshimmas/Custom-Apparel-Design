@@ -20,7 +20,7 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'phone_number',
             'email',
-            'username',
+            # 'username',
             'password',
             'confirm_password',
             'consent'
@@ -43,6 +43,7 @@ class UserSerializer(serializers.ModelSerializer):
         validated_data.pop('confirm_password')
         user = User(**validated_data)
         user.set_password(password)
+        user.username = user.email
         user.is_active = False
         if user.role == 'admin':
             user.is_staff = True
@@ -257,6 +258,8 @@ class SizeSerializer(serializers.ModelSerializer):
 
 class UserDesignSerializer(serializers.ModelSerializer):
 
+    # quantity = serializers.IntegerField()
+
     class Meta:
         model = models.UserDesign
         fields = [
@@ -264,17 +267,52 @@ class UserDesignSerializer(serializers.ModelSerializer):
             'apparel',
             'design_type',
             'prompt',
-            'print_method',
-            'size',
+            'image',
+            'font',
+            'style',
+            'shirt_size',
             'color',
-            'calculate_price'
+            'calculate_price',
+            'created_at',
+            'is_draft',
+            # 'quantity'
             ]
-        read_only_fields = ['user', 'created_at']
+        read_only_fields = [
+            'user', 
+            'created_at', 
+            ]
     
     def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
-        return super().create(**validated_data)
+        
+        user = self.context['request'].user
+        validated_data['user'] = user
 
+        if not validated_data.get('is_draft', True):
+            if not hasattr(user, 'shipping_address'):
+                raise serializers.ValidationError({'detail': 'Shipping address not found for this user.'})
+
+        # quantity = validated_data.pop('quantity')
+
+        # Save the design
+        design = super().create(validated_data)
+
+        # If it's not a draft, auto-create an order
+        if not design.is_draft:
+            models.Order.objects.create(
+                user=user,
+                user_design=design,
+                shipping_address=user.shipping_address,
+                design_type=design.design_type,
+                apparel=design.apparel,
+                color=design.color,
+                print_method=design.style,
+                # quantity=quantity,
+                estimated_delivery_date=timezone.now() + timedelta(days=5),
+                subtotal=0,  # Will be calculated in save()
+                total_amount=0,
+            )
+
+        return design
 
 
 
