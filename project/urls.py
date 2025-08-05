@@ -38,7 +38,7 @@ router.register(r'orders', OrderView, basename='orders')
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include(router.urls)),
-    path('user/login/', TokenObtainPairView.as_view()),
+    path('user/login/', CustomTokenObtainPairView.as_view()),
     path('user/refresh-token/', TokenRefreshView.as_view()),
     path('user/logout/', TokenBlacklistView.as_view()),
 ]

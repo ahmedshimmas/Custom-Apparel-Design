@@ -5,10 +5,29 @@ from app.tasks import send_welcome_otp
 from django.contrib.auth import get_user_model
 from datetime import timedelta
 from django.utils import timezone
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 # from django.contrib.auth.hashers import check_password
 # from django.utils import timezone
 
 User = get_user_model()
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+
+        # Add custom user data to the response
+        data['user'] = {
+            'id': self.user.id,
+            'role': self.user.role,
+            'first_name': self.user.first_name,
+            'last_name': self.user.last_name,
+            'phone_number': self.user.phone_number,
+            'email': self.user.email,
+            'consent': self.user.consent,
+        }
+
+        return data
 
 class UserSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)
@@ -129,6 +148,13 @@ class PatchUserProfileSerializer(serializers.ModelSerializer):
     shipping_address = serializers.SerializerMethodField()
     # billing_address = serializers.SerializerMethodField()
 
+    #shipping fields
+    street_address = serializers.CharField(required=False)
+    city = serializers.CharField(required=False)
+    postal_code = serializers.CharField(required=False)
+    province_state = serializers.CharField(required=False)
+
+
     class Meta:
         model = User
         fields = [
@@ -139,12 +165,16 @@ class PatchUserProfileSerializer(serializers.ModelSerializer):
             'new_phone_number',
             'country',
             'shipping_address',
-            # 'billing_address'
+            'street_address',
+            'city',
+            'postal_code',
+            'province_state'
         ]
+
 
     def get_shipping_address(self, instance):
 
-        default = models.ShippingAddress.objects.filter(user=self.context['request'].user, is_default=True).first() #returns an instance or None
+        default = models.ShippingAddress.objects.filter(user=self.context['request'].user).first() #returns an instance or None
         
         if default:
             return {
@@ -186,16 +216,55 @@ class PatchUserProfileSerializer(serializers.ModelSerializer):
             'last_name': 'last_name',
             'country': 'country',
             'new_email': 'email',
-            'new_phone_number': 'phone_number'
+            'new_phone_number': 'phone_number',
         }
         for new_fields, model_fields in updatable_fields.items():
             new_value = validated_data.pop(new_fields, None)
             if new_value is not None:
                 setattr(instance, model_fields, new_value)
 
+
+        # Extract shipping fields from validated_data if they exist
+        shipping_fields = ['street_address', 'city', 'postal_code', 'province_state']
+        shipping_data = {field: validated_data.pop(field, None) for field in shipping_fields}
+
+        # If any shipping field is provided, proceed to create/update shipping address, else skip the logic written below
+        if any(value is not None for value in shipping_data.values()):
+            
+            user = instance  # current user
+
+            # shipping_address=models.ShippingAddress.objects.filter(user=user,is_default=True).first() === WILL BE USED IF WE CHANGE RELATION TO FK INSTEAD OF 1TO1
+            
+            
+            shipping_address = getattr(user, 'shipping_address', None)
+
+            if shipping_address:
+
+                for field, value in shipping_data.items():
+                    if value is not None:
+                        setattr(shipping_address, field, value)
+
+                shipping_address.full_name = f'{user.first_name} {user.last_name}'
+                shipping_address.phone_number = user.phone_number
+                shipping_address.email = user.email
+                shipping_address.country = user.country
+                shipping_address.save()
+            
+            else: 
+                models.ShippingAddress.objects.create(
+                    user=user,
+                    full_name=f'{user.first_name} {user.last_name}',
+                    phone_number=user.phone_number,
+                    email=user.email,
+                    street_address=shipping_data.get('street_address', ''),
+                    city=shipping_data.get('city', ''),
+                    postal_code=shipping_data.get('postal_code', ''),
+                    province_state=shipping_data.get('province_state', ''),
+                    country=user.country,
+                )
+
         instance.save()
-        
-        return super().update(instance, validated_data)
+        return instance
 
 
 
@@ -246,6 +315,15 @@ class PricingRuleSerializer(serializers.ModelSerializer):
             'custom_design_upload_cost'
         ]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        product = instance.product_name
+
+        data['product_name'] = {
+            "id": product.id,
+            "name": product.product_name
+        }
+        return data
 
 
 class SizeSerializer(serializers.ModelSerializer):
@@ -258,7 +336,7 @@ class SizeSerializer(serializers.ModelSerializer):
 
 class UserDesignSerializer(serializers.ModelSerializer):
 
-    # quantity = serializers.IntegerField()
+    order_quantity = serializers.IntegerField(write_only=True, required = False)
 
     class Meta:
         model = models.UserDesign
@@ -275,23 +353,43 @@ class UserDesignSerializer(serializers.ModelSerializer):
             'calculate_price',
             'created_at',
             'is_draft',
-            # 'quantity'
+            'order_quantity'
             ]
         read_only_fields = [
             'user', 
             'created_at', 
             ]
     
+
+
+    def validate(self, attrs):
+        
+        apparel = self.instance.apparel if self.instance else attrs.get('apparel')
+        selected_size = attrs.get('shirt_size')
+
+        if not apparel.sizes_available.filter(name=selected_size).exists():
+            raise ValidationError({'detail':'no such size found for this apparel'})
+        return attrs
+    
+
+    
     def create(self, validated_data):
         
-        user = self.context['request'].user
-        validated_data['user'] = user
+        user = self.context['request'].user 
+        validated_data['user'] = user 
+
+        quantity = validated_data.pop('order_quantity', None)
 
         if not validated_data.get('is_draft', True):
             if not hasattr(user, 'shipping_address'):
-                raise serializers.ValidationError({'detail': 'Shipping address not found for this user.'})
+                raise serializers.ValidationError({
+                    'detail': 'Shipping address not found for this user.'
+                    })
+            if quantity is None:
+                raise serializers.ValidationError({
+                    'detail': 'quantity is required when ordering a design'
+                })
 
-        # quantity = validated_data.pop('quantity')
 
         # Save the design
         design = super().create(validated_data)
@@ -306,7 +404,7 @@ class UserDesignSerializer(serializers.ModelSerializer):
                 apparel=design.apparel,
                 color=design.color,
                 print_method=design.style,
-                # quantity=quantity,
+                quantity=quantity,
                 estimated_delivery_date=timezone.now() + timedelta(days=5),
                 subtotal=0,  # Will be calculated in save()
                 total_amount=0,
@@ -399,5 +497,5 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 class OrderListSerializer(serializers.ModelSerializer):
     
     class Meta:
-        models = models.Order
+        model = models.Order
         fields = '__all__'

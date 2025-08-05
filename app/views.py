@@ -3,30 +3,37 @@ from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import CreateModelMixin, ListModelMixin
 from rest_framework import viewsets
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
-from datetime import timedelta
+# from datetime import timedelta
 from rest_framework import status
 from django.contrib.auth import get_user_model
-from app.tasks import send_welcome_otp, password_reset_otp
+# from app.tasks import send_welcome_otp, password_reset_otp
 from django.utils.encoding import force_str, force_bytes
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
 from project import settings
-from django.core.mail import send_mail
+# from django.core.mail import send_mail
 from django.core.mail import EmailMultiAlternatives
 from django.db.models import Sum, F
 from .pagination import CustomPagination
 from app import permissions
-from rest_framework.validators import ValidationError
-
-User = get_user_model()
+# from rest_framework.validators import ValidationError
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from app import models, serializers
 
+User = get_user_model()
+
+
 # Create your views here.
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = serializers.CustomTokenObtainPairSerializer
+
 
 class UserViewset(GenericViewSet, CreateModelMixin):
     queryset = models.User.objects.none()
@@ -228,6 +235,7 @@ class ApparelProductView(viewsets.ModelViewSet):
     serializer_class = serializers.ApparelProductSerializer
     permission_classes = [IsAdminUser]
     pagination_class = CustomPagination
+    
 
 
 
@@ -399,7 +407,7 @@ class OrderView(viewsets.ModelViewSet):
 #         query = models.Order.objects.filter(order_date__gte = start_date) if start_date else models.Order.objects.all()
 #         revenue = query.aggregate(
 #             total = F('product__price') * F('product__quantity')
-#         )['revenue'] or 0
+#         )['total'] or 0
                 
 #         return Response(
 #             {

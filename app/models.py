@@ -27,7 +27,7 @@ class User(AbstractUser):
     profile_picture = models.ImageField(upload_to='user/profile_pictures', blank=True, null=True)
     country = models.CharField(max_length=50, blank=True, null=True)
 
-    #notification settings
+    #notification settings10T
     order_confirmation_email = models.BooleanField(default=False, null=True, blank=True)
     payment_success_notification = models.BooleanField(default=False, null=True, blank=True)
     shipping_delivery_updates = models.BooleanField(default=False, null=True, blank=True)
@@ -148,7 +148,7 @@ class UserDesign(models.Model):
 
 class ShippingAddress(models.Model):
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='shipping_address')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='shipping_address')
 
     full_name = models.CharField(max_length=69)
     phone_number = models.CharField(max_length=15)
@@ -159,25 +159,11 @@ class ShippingAddress(models.Model):
     province_state = models.CharField(max_length=69)  
     country = models.CharField(max_length=50)
 
-    is_default = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = 'Shipping Address'
-        verbose_name_plural = 'Shipping Address'
+        verbose_name_plural = 'Shipping Addresses'
 
-    
-    def save(self, *args, **kwargs):
-        
-        #set the first address as default automatically
-        if not ShippingAddress.objects.filter(user=self.user).exists():
-            self.is_default = True
-
-        #if user sets another address as default, then update the previous default address and change it to is_default=False automatically
-        if self.is_default:
-            ShippingAddress.objects.filter(user=self.user, is_default=True).exclude(pk=self.pk).update(is_default=False)
-            #we used .exclude here because without it the current instance we are trying we set as default will also be fetched and updated as false, so we exclude the current object from this query
-
-        return super().save(*args, **kwargs)
     
     def __str__(self):
         return f'User {self.user.get_full_name()} Shipping Address'
@@ -198,22 +184,11 @@ class BillingAddress(models.Model):
     province_state = models.CharField(max_length=69)  
     country = models.CharField(max_length=50)
 
-    is_default = models.BooleanField(default=False)
 
 
     class Meta:
         verbose_name = 'Billing Address'
-        verbose_name_plural = 'Billing Address'
-
-    def save(self, *args, **kwargs):
-        
-        if not BillingAddress.objects.filter(user=self.user).exists():
-            self.is_default = True
-
-        if self.is_default:
-            BillingAddress.objects.filter(user=self.user, is_default=True).exclude(pk=self.pk).update(is_default=False)
-
-        return super().save(*args, **kwargs)
+        verbose_name_plural = 'Billing Addresses'
 
 
     def __str__(self):
@@ -241,8 +216,9 @@ class Order(models.Model):
     order_tracking_status = models.CharField(max_length=20, choices=OrderTrackingStatus.choices, default=OrderTrackingStatus.ORDER_PLACED)
 
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
-    discount_applied = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)
-    shipping_fee = models.DecimalField(max_digits=6, decimal_places=2, default=10.00)
+    from decimal import Decimal
+    discount_applied = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('0.00'))
+    shipping_fee = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('10.00'))
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -255,8 +231,8 @@ class Order(models.Model):
             pricing = None
 
         base_price = pricing.base_price if pricing else 0
-        ai_cost = pricing.ai_design_cost if self.design.design_type == 'ai' else 0
-        upload_cost = pricing.custom_design_upload_cost if self.design.design_type == 'upload' else 0
+        ai_cost = pricing.ai_design_cost if self.design_type == 'ai' else 0
+        upload_cost = pricing.custom_design_upload_cost if self.design_type == 'upload' else 0
         print_cost = pricing.print_cost
 
         # Calculate price for one item
