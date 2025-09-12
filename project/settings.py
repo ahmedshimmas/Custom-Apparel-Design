@@ -61,9 +61,9 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'project.urls'
 
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+# CORS_ALLOW_CREDENTIALS = True
 
-CSRF_TRUSTED_ORIGINS = ['http://localhost:3000']
+# CSRF_TRUSTED_ORIGINS = ['http://localhost:3000']
 
 TEMPLATES = [
     {
@@ -172,8 +172,8 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1)
 }
 
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')  
-CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND')
+
+
 
 #for smtp email configuration (import send_email, use send_email(subject, message, sender, to_email))
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"

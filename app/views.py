@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
-# from datetime import timedelta
+from datetime import timedelta
 from rest_framework import status
 from django.contrib.auth import get_user_model
 # from app.tasks import send_welcome_otp, password_reset_otp
@@ -23,7 +23,7 @@ from app import permissions
 # from rest_framework.validators import ValidationError
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from app import models, serializers
+from app import models, serializers, choices
 
 User = get_user_model()
 
@@ -39,6 +39,7 @@ class UserViewset(GenericViewSet, CreateModelMixin):
     queryset = models.User.objects.none()
     serializer_class = serializers.UserSerializer
     http_method_names = ['post']
+    permission_classes = []
 
     @action(
         detail=False,
@@ -436,3 +437,227 @@ class OrderView(viewsets.ModelViewSet):
 #     serializer_class = serializers.PricingRuleSerializer
 #     permission_classes = [IsAdminUser]
 
+
+
+
+# -------------------------ADMIN FLOW--------------------------
+
+class AdminDashboardViewset(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    http_method_names = ['get']
+
+    def list(self, request):
+        if not request.user.is_staff:
+            return Response(
+                {'detail': 'You do not have permission to access this resource.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        now = timezone.now()
+        monthly_revenue = models.Order.objects.filter(
+            created_at__year = now.year,
+            created_at__month = now.month  
+        ).aggregate(total=Sum(F('total_amount')*F('quantity')))['total'] or 0
+        new_apparel_designs = models.UserDesign.objects.filter(created_at__month = now.month).count()
+        active_orders  =models.Order.objects.filter(is_active =True).count()
+        payments_received = models.Order.objects.filter(order_status = 'Completed').aggregate(amount = Sum('total_amount'))['amount'] or 0
+        new_customers = models.User.objects.filter(created_at__month = now.month).count()
+        cancelled_orders = models.Order.objects.filter(order_status = 'Cancelled').count()
+
+        recent_orders = models.Order.objects.filter(is_active=True).order_by('-created_at')[:5]
+        serializer = serializers.UserOrderSerializer(recent_orders, many=True)
+
+        filter = request.query_params.get('filter', '1M')
+        today = timezone.now().date()
+
+        if filter == '1M':
+            start_date = today - timedelta(days=30)
+        elif filter == '3M':
+            start_date = today - timedelta(days=60)
+        elif filter == '6M':
+            start_date = today - timedelta(days=180)
+        elif filter == '1Y':
+            start_date =  today - timedelta(days=365)
+        else:
+            start_date = None
+        
+        query = models.Order.objects.filter(created_at__gte = start_date) if start_date else models.Order.objects.all()
+        revenue = query.aggregate(
+            total =Sum( F('total_amount') * F('quantity'))
+        )['total'] or 0
+                
+        return Response(
+            {
+                'monthly_revenue': monthly_revenue,
+                'new_apparel_designs': new_apparel_designs,
+                'active_orders': active_orders,
+                'payments_received': payments_received,
+                'new_customers': new_customers,
+                'cancelled_orders': cancelled_orders,
+                'order_revenue': revenue,
+                'Recent_Users_Orders':serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
+    
+
+class OrderViewSet(viewsets.ModelViewSet):
+    queryset = models.Order.objects.all()
+    serializer_class = serializers.OrderCreateSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class PricingRuleViewSet(viewsets.ModelViewSet):
+    queryset = models.PricingRules.objects.all()
+    serializer_class = serializers.PricingRuleSerializer
+    permission_classes = [IsAdminUser]
+
+
+class ManageOrdersViewset(GenericViewSet , ListModelMixin ):
+    permission_classes  = [IsAdminUser]
+    
+    def list(self, request):
+        total_orders = models.Order.objects.all().count()
+        delivered_orders = models.Order.objects.filter(order_status = 'completed').count()
+        pending_orders = models.Order.objects.filter(order_status = 'processing').count()
+        cancelled_orders = models.Order.objects.filter(order_status = 'cancelled').count()
+
+        return Response({
+            "Total_Orders":total_orders,
+            "Delivered_Orders":delivered_orders,
+            "Pending_Orders":pending_orders,
+            "Cancelled_orders":cancelled_orders
+        },status=status.HTTP_200_OK)
+        
+        
+
+class ListOrderViewset(GenericViewSet , ListModelMixin):
+    permission_classes = [IsAdminUser]
+    pagination_class = CustomPagination
+
+    def list(self ,request):
+        show_orders = models.Order.objects.all().order_by('created_at')
+        print(type(show_orders))
+        page = self.paginate_queryset(show_orders)
+        print(page)
+        if page is not None:
+            serializer = serializers.ListOrderSerializer(page , many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        
+        serializer = serializers.ListOrderSerializer(show_orders , many=True)
+        print(serializer)
+        return Response(serializer.data)
+
+    @action(detail=True , methods=['get'] , url_path='view_orders')
+    def view_order(self , request , pk=None):
+        query_set = models.Order.objects.all()
+        user = get_object_or_404(query_set , pk=pk)
+        serializer = serializers.TrackOrderSerializer(user)
+        return Response(serializer.data)        
+    
+    @action(detail=True , methods=['post'] , url_path='cancel_order', permission_classes=[IsAdminUser])
+    def canceling_order(self , request , pk=None):
+        try:
+            order = models.Order.objects.get(id=pk)
+        except:
+            return Response({'message':'Order with this ID does not exist'})
+        if order.is_active == False and order.order_status == choices.OrderStatus.CANCELLED:
+            return Response({"message":f"Order {order.order_id} has been already cancelled."})
+        
+        order.is_active=False
+        order.order_status = choices.OrderStatus.CANCELLED  
+        order.save()
+        return Response({
+            "message":f"Order {order.order_id} has been cancelled successfully."
+        })
+    
+
+
+     
+class UserManagementViewset(GenericViewSet , ListModelMixin):
+    permission_classes = [IsAdminUser , IsAuthenticated]
+
+    def list(self , request):
+        total_users = User.objects.all().count()
+        active_users = User.objects.filter(is_active = True).count()
+        suspended_users = User.objects.filter(is_active = False).count()
+ 
+        return Response({
+            "totals_users":total_users,
+            "active_users":active_users,
+            "suspended_user":suspended_users,
+        })
+    
+    
+class ListUserViewSet(GenericViewSet , ListModelMixin):
+    permission_classes = [IsAdminUser , IsAuthenticated]
+    pagination_class = CustomPagination
+
+
+    def list(self , request):
+        list_of_user = User.objects.all().order_by('id')
+        page = self.paginate_queryset(list_of_user)
+        if page is not None:
+            serializer = serializers.ListUserSerializer(page , many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = serializers.ListUserSerializer(list_of_user , many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True ,methods=['post'] , url_path='suspend-user')
+    def suspend_user(self, request, pk=None):
+        try:
+            user = User.objects.get(id=pk)
+        except User.DoesNotExist:
+            return Response('User with this ID does not exist')
+
+        user.is_active = False
+        user.save()
+        return Response({
+            'details': f'user {pk} suspended'
+        })
+    
+    @action(detail=True , methods=['post'] ,url_path='reactivate-user')
+    def reactive_user(self ,request ,pk=None):
+        try:
+            user = User.objects.get(id=pk)
+        except User.DoesNotExist:
+            return Response('User with this ID does not exist')
+
+        user.is_active = True
+        user.save()
+        return Response({'details':f'user {pk} reactivated successfully!'}) 
+        
+
+class ViewUserViewSet(GenericViewSet , ListModelMixin):
+    permission_classes = [IsAdminUser ,IsAuthenticated]
+   
+    def list(self ,request, pk=None):
+        user =  User.objects.get(id=pk)
+        serializer =serializers.ViewUserSerializer(user)
+        
+        user_orders  = models.Order.objects.filter(user_id = pk)
+        total_orders = user_orders.count()
+        total_spent = user_orders.aggregate(orders_sum = Sum('total_amount'))['orders_sum'] or 0
+        orders = models.Order.objects.order_by('order_date')[:6]
+        
+        return Response({
+            "total_user_orders":total_orders,
+            "total_spent":total_spent,
+            "list_of_recent_orders":orders,
+            "users":serializer.data}, status=status.HTTP_200_OK)
+    
+  
+# class ProductCatalogViewset(viewsets.ModelViewSet):
+#     permission_classes = [IsAdminUser , IsAuthenticated]
+#     pagination_class = CustomPagination
+
+#     queryset = models.ApparelProduct.objects.all()
+#     serializer_class = serializers.ProductCatalogSerializer
+
+#     @action(detail=False , methods=['post'] , url_path='add_new_product')
+#     def add_product(self , request):
+#         serializer = serializers.ApparelProductSerializer(data = request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response({'message':'Product has been created succesfully','data':serializer.data} , status=status.HTTP_201_CREATED)
+#         return Response({'Message':serializer.data} , status=status.HTTP_400_BAD_REQUEST)

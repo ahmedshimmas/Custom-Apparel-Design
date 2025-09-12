@@ -39,7 +39,6 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'phone_number',
             'email',
-            # 'username',
             'password',
             'confirm_password',
             'consent'
@@ -64,10 +63,12 @@ class UserSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.username = user.email
         user.is_active = False
-        if user.role == 'admin':
-            user.is_staff = True
         user.save()
-        send_welcome_otp.delay(user.id)
+        if user.is_superuser:
+            user.is_active = True
+            user.save()
+        else:
+            send_welcome_otp.delay(user.id)
         return user
     
 
@@ -499,3 +500,166 @@ class OrderListSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Order
         fields = '__all__'
+
+
+#MS work------------------------------------DASHBOARD APIS----------------------------------------
+
+class UserOrderSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.CharField(source = 'user.profile_picture' ,read_only = True)
+    full_name = serializers.CharField(source = 'user.get_full_name', read_only=True)
+    apparel_name = serializers.CharField(source = 'apparel.product_name' , read_only = True)
+
+    class Meta:
+        model = models.Order
+        fields = [
+            'profile_picture',
+            'full_name',
+            'design_type',
+            'apparel_name',
+            'print_method',
+            'quantity',
+            'created_at',
+            'payment',
+            'order_status'
+        ]
+
+    # def get_full_name(self ,obj):
+    #     first = obj.user.first_name or ""
+    #     second = obj.user.last_name or ""
+    #     return f"{first} {second}".strip()
+    
+
+class ListOrderSerializer(serializers.ModelSerializer):
+    design_type = serializers.CharField(source = 'product.design_type',read_only=True)
+    full_name = serializers.ReadOnlyField(source="user.get_full_name")
+    print_method = serializers.CharField(source='product.print_method', read_only=True)
+    profile_picture = serializers.CharField(source = 'user.profile_picture' ,read_only = True)
+    apparel_name = serializers.CharField(source = 'apparel.product_name' , read_only = True)
+
+    
+    class Meta:
+        model = models.Order
+        fields =[
+            'order_id',
+            'profile_picture',
+            'full_name',
+            'design_type',
+            'apparel_name',
+            'color',
+            'print_method',
+            'quantity',
+            'created_at',
+            'payment',
+            ]
+
+
+    
+class TrackOrderSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source ='user.first_name' ,read_only = True)
+    email = serializers.CharField(source = 'user.email' ,read_only = True)
+    phone_no = serializers.CharField(source = 'user.phone_number' ,read_only = True)
+    billing_address = serializers.CharField(source ='user.billing_address' , read_only = True)
+    is_active = serializers.BooleanField(source = 'user.is_active' , read_only = True)
+    apparel_type = serializers.CharField(source = 'user_design.apparel' , read_only = True)
+    print_method = serializers.CharField(source ='user_design.style' ,read_only = True)
+    color = serializers.CharField(source = 'user_design.color' , read_only = True)
+    size = serializers.CharField(source = 'user_design.shirt_size' , read_only = True)
+
+    class Meta:
+        model = models.Order
+        fields = [
+            'order_id',
+            'customer_name',
+            'email',
+            'phone_no',
+            'shipping_address',
+            'billing_address',
+            'is_active',
+            'apparel_type',
+            'print_method',
+            'color',
+            'size',
+            'quantity',
+            'created_at',
+            'order_status',
+            'payment',
+            'subtotal',
+            'discount_applied',
+            'shipping_fee',
+            'total_amount',
+            ]
+        
+    def to_representation(self, instance):
+
+        data = super().to_representation(instance)
+        user = instance.shipping_address
+
+        data['shipping_address'] = {
+            'full_name': user.full_name,
+            'phone_number': user.phone_number,
+            'email': user.email,
+            'street_address': user.street_address,
+            'city': user.city,
+            'postal_code': user.postal_code,
+            'province_state': user.province_state,
+            'country': user.country
+        }
+        return data
+ 
+
+class ListUserSerializer(serializers.ModelSerializer):
+    design_type = serializers.CharField(source='product.design_type', read_only=True)
+    total_orders = serializers.SerializerMethodField()
+    full_name = serializers.ReadOnlyField(source="get_full_name")
+    profile_picture = serializers.CharField(source = 'user.profile_picture' ,read_only = True)
+    
+    class Meta:
+        model = models.User
+        fields = [
+            'user_id',
+            'full_name',
+            'profile_picture',
+            'email',
+            'is_active',
+            'last_login',
+            'design_type',
+            'total_orders'
+
+        ]
+    def get_total_orders(self , obj):
+        return obj.user_orders.count()
+
+class ViewUserSerializer(serializers.ModelSerializer):
+
+    total_orders = serializers.IntegerField(read_only=True)
+    total_spent = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = models.User
+        fields = [
+            'profile_picture',
+            'first_name',
+            'last_name',
+            'user_id',
+            'email',
+            'phone_number',
+            'is_active',
+            'total_orders',
+            'total_spent',
+        ]
+
+
+# class ProductCatalogSerializer(serializers.ModelSerializer):
+#     base_price = serializers.CharField(source = 'pricing_rule.base_price')
+#     class Meta:
+#         model = models.ApparelProduct
+#         fields = [
+#             'product_id',
+#             'product_name',
+#             'sizes_available',
+#             'color_options',
+#             'base_price',
+#             'print_methods_supported',
+#             'is_active',
+#         ]
+    
