@@ -259,7 +259,7 @@ class UserDesignView(viewsets.ModelViewSet):
     permission_classes = [permissions.IsOwnerOrAdmin]
 
     def get_queryset(self):
-        if self.request.user.is_staff:
+        if self.request.user.is_superuser:
             return models.UserDesign.objects.all()
         return models.UserDesign.objects.filter(user=self.request.user)           
 
@@ -271,7 +271,7 @@ class ShippingAddressView(viewsets.ModelViewSet):
     permission_classes = [permissions.IsOwnerOrAdmin]
 
     def get_queryset(self):
-        if self.request.user.is_staff:
+        if self.request.user.is_superuser:
             return models.ShippingAddress.objects.all()
         return models.ShippingAddress.objects.filter(user=self.request.user)
 
@@ -282,7 +282,7 @@ class BillingAddressView(viewsets.ModelViewSet):
     permission_classes = [permissions.IsOwnerOrAdmin]
 
     def get_queryset(self):
-        if self.request.user.is_staff:
+        if self.request.user.is_superuser:
             return models.BillingAddress.objects.all()
         return models.BillingAddress.objects.filter(user=self.request.user)
 
@@ -293,7 +293,7 @@ class OrderView(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_staff:
+        if user.is_superuser:
             return models.Order.objects.all()
         return models.Order.objects.filter(user=user)
     

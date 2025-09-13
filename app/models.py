@@ -14,7 +14,7 @@ class User(AbstractUser):
     user_id = models.CharField(max_length=10 , unique=True , null=True ,blank=True)
 
     #register model
-    role = models.CharField(choices=UserRoleChoices.choices, max_length=6, default=UserRoleChoices.USER)
+    # role = models.CharField(choices=UserRoleChoices.choices, max_length=6, default=UserRoleChoices.USER)
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
     phone_number = models.CharField(max_length=15)
@@ -90,7 +90,7 @@ class ApparelProduct(models.Model):
     product_name = models.CharField(max_length=50)
     sizes_available = models.ManyToManyField('Size', related_name='apparel_sizes')
     color_options = models.CharField(max_length=100)
-    print_methods_supported = models.CharField(max_length=10, choices=ProductPrintMethods.choices, default=ProductPrintMethods.EMBROIDARY)
+    print_methods_supported = models.CharField(max_length=20, choices=ProductPrintMethods.choices, default=ProductPrintMethods.embroidary)
     description = models.TextField()
     upload_image = models.ImageField(upload_to='admin/product/thumbnails/', null=True, blank=True)
     is_active = models.BooleanField(default=True)
@@ -130,8 +130,9 @@ class Size(models.Model):
 
 class PricingRules(models.Model):
 
-    product_name = models.OneToOneField(ApparelProduct, on_delete=models.SET_NULL, null=True, related_name='pricing_rule')
+    product_name = models.CharField(choices=ProductChoices)
     base_price = models.DecimalField(max_digits=6, decimal_places=2)
+    printing_method = models.CharField(choices=ProductPrintMethods.choices, default=ProductPrintMethods.embroidary)
 
     ai_design_cost = models.DecimalField(max_digits=6, decimal_places=2, default=2.00)
     custom_design_upload_cost = models.DecimalField(max_digits=6, decimal_places=2, default=1.00)
@@ -159,7 +160,7 @@ class UserDesign(models.Model):
     image = models.ImageField(upload_to='user/product-design/images/', null=True, blank=True)
 
     font = models.CharField(max_length=30, blank=True, null=True)
-    style = models.CharField(max_length=20, choices=ProductPrintMethods.choices, default=ProductPrintMethods.EMBROIDARY)
+    style = models.CharField(max_length=20, choices=ProductPrintMethods.choices, default=ProductPrintMethods.embroidary)
     shirt_size = models.CharField(max_length=20, choices=ProductSizes.choices, default=ProductSizes.SMALL)
     color = models.CharField(max_length=30, default='black')
 

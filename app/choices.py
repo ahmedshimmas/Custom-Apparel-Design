@@ -1,10 +1,17 @@
 from django.db.models import TextChoices
 
 
-class UserRoleChoices(TextChoices):
-    ADMIN = 'admin', 'ADMIN'
-    USER = 'user', 'USER'
+# class UserRoleChoices(TextChoices):
+#     ADMIN = 'admin', 'ADMIN'
+#     USER = 'user', 'USER'
 
+ProductChoices = (
+    ('Shirt front', 'Shirt front'),
+    ('Shirt Back', 'Shirt Back'),
+    ('Shirt Front + Back', 'Shirt Front + Back'),
+    ('Cap', 'Cap'),
+    ('Hoodie', 'Hoodie')
+    )
 
 class ProductSizes(TextChoices):
     SMALL = 'S', 'SMALL' 
@@ -15,9 +22,9 @@ class ProductSizes(TextChoices):
     ONE_SIZE = 'ONE_SIZE', 'ONE_SIZE'
 
 class ProductPrintMethods(TextChoices):
-    EMBROIDARY = 'em', 'EMBROIDARY'
-    SCREEN_PRINTING = 'spr', 'SCREEN_PRINTING'
-    BOTH = 'b', 'BOTH'
+    embroidary = 'embroidary', 'EMBROIDARY'
+    screen_printing = 'screen_printing', 'SCREEN_PRINTING'
+    both = 'both', 'BOTH'
 
 
 class UserDesignType(TextChoices):

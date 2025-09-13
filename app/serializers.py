@@ -19,7 +19,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Add custom user data to the response
         data['user'] = {
             'id': self.user.id,
-            'role': self.user.role,
             'first_name': self.user.first_name,
             'last_name': self.user.last_name,
             'phone_number': self.user.phone_number,
@@ -311,20 +310,21 @@ class PricingRuleSerializer(serializers.ModelSerializer):
             'id',
             'product_name',
             'base_price',
+            'printing_method',
             'print_cost',
             'ai_design_cost',
             'custom_design_upload_cost'
         ]
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        product = instance.product_name
+    # def to_representation(self, instance):
+    #     data = super().to_representation(instance)
+    #     product = instance
 
-        data['product_name'] = {
-            "id": product.id,
-            "name": product.product_name
-        }
-        return data
+    #     data['product_name'] = {
+    #         "id": product.id,
+    #         "name": product.product_name
+    #     }
+    #     return data
 
 
 class SizeSerializer(serializers.ModelSerializer):
