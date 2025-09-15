@@ -1,9 +1,9 @@
 from django.db.models import TextChoices
 
 
-# class UserRoleChoices(TextChoices):
-#     ADMIN = 'admin', 'ADMIN'
-#     USER = 'user', 'USER'
+class UserRoleChoices(TextChoices):
+    ADMIN = 'admin', 'ADMIN'
+    USER = 'user', 'USER'
 
 ProductChoices = (
     ('Shirt front', 'Shirt front'),

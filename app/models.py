@@ -6,7 +6,7 @@ from datetime import timedelta
 import random
 import string
 from django.utils.translation import gettext_lazy as _
-import uuid
+# import uuid
 
 
 class User(AbstractUser):
@@ -14,7 +14,7 @@ class User(AbstractUser):
     user_id = models.CharField(max_length=10 , unique=True , null=True ,blank=True)
 
     #register model
-    # role = models.CharField(choices=UserRoleChoices.choices, max_length=6, default=UserRoleChoices.USER)
+    role = models.CharField(choices=UserRoleChoices.choices, max_length=6, default=UserRoleChoices.USER)
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
     phone_number = models.CharField(max_length=15)
@@ -85,12 +85,11 @@ class User(AbstractUser):
 
 class ApparelProduct(models.Model):
 
-    product_id = models.CharField(unique=True ,blank=True ,null=True)
+    product_uid = models.CharField(unique=True, blank=True, null=True)
+    product = models.OneToOneField('PricingRules', on_delete=models.CASCADE, blank=True, null=True)
     
-    product_name = models.CharField(max_length=50)
     sizes_available = models.ManyToManyField('Size', related_name='apparel_sizes')
     color_options = models.CharField(max_length=100)
-    print_methods_supported = models.CharField(max_length=20, choices=ProductPrintMethods.choices, default=ProductPrintMethods.embroidary)
     description = models.TextField()
     upload_image = models.ImageField(upload_to='admin/product/thumbnails/', null=True, blank=True)
     is_active = models.BooleanField(default=True)
@@ -117,7 +116,7 @@ class ApparelProduct(models.Model):
 
 
     def __str__(self):
-        return self.product_name
+        return self.product.get_product_name_display() if self.product else "Unnamed in PricingRules"
 
 
 class Size(models.Model):
@@ -145,7 +144,17 @@ class PricingRules(models.Model):
     def __str__(self):
         return f'{self.product_name} - {self.base_price}'
 
-
+  # def to_representation(self, instance):
+    #     data = super().to_representation(instance)
+    #     size = instance.sizes_available
+    #     data['sizes_available'] = [
+    #             {
+    #                 'size_id': size.id,
+    #                 'size_name': size.name
+    #             }
+    #             for size in instance.sizes_available.all()
+    #         ]
+    #     return data
 
 
 class UserDesign(models.Model):

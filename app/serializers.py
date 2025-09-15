@@ -19,6 +19,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Add custom user data to the response
         data['user'] = {
             'id': self.user.id,
+            'role': self.user.role,
             'first_name': self.user.first_name,
             'last_name': self.user.last_name,
             'phone_number': self.user.phone_number,
@@ -33,6 +34,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
+            'id',
             'role',
             'first_name',
             'last_name',
@@ -280,26 +282,40 @@ class PatchUserNotificationSerializer(serializers.ModelSerializer):
         ]
 
 class ApparelProductSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.product_name', read_only=True)
+    base_price = serializers.DecimalField(source='product.base_price', max_digits=4, decimal_places=2, read_only=True)
+    print_methods = serializers.CharField(source='product.printing_method', read_only=True)
     
     class Meta:
         model = models.ApparelProduct
         fields = [
             'id',
+            'product',
             'product_name',
+            'base_price',
+            'print_methods',
             'sizes_available',
             'color_options',
-            'print_methods_supported',
             'description',
             'upload_image',
             'is_active',
             'created_at'
         ]
     
+    def validate(self, attrs):
+        print(attrs)
+        return super().validate(attrs)
+
     def to_representation(self, instance):
-        data = super().to_representation(instance) #instance is a serialized dict now
+        data = super().to_representation(instance)
+        size = instance.sizes_available
         data['sizes_available'] = [
-            str(name) for name in instance.sizes_available.all()
-        ]
+                {
+                    'size_id': size.id,
+                    'size_name': size.name
+                }
+                for size in instance.sizes_available.all()
+            ]
         return data
 
 class PricingRuleSerializer(serializers.ModelSerializer):
@@ -315,16 +331,6 @@ class PricingRuleSerializer(serializers.ModelSerializer):
             'ai_design_cost',
             'custom_design_upload_cost'
         ]
-
-    # def to_representation(self, instance):
-    #     data = super().to_representation(instance)
-    #     product = instance
-
-    #     data['product_name'] = {
-    #         "id": product.id,
-    #         "name": product.product_name
-    #     }
-    #     return data
 
 
 class SizeSerializer(serializers.ModelSerializer):
@@ -616,6 +622,7 @@ class ListUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.User
         fields = [
+            'id',
             'user_id',
             'full_name',
             'profile_picture',

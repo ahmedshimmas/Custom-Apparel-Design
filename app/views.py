@@ -28,9 +28,6 @@ from app import models, serializers, choices
 User = get_user_model()
 
 
-# Create your views here.
-
-
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = serializers.CustomTokenObtainPairSerializer
 

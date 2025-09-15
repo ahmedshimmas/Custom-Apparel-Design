@@ -7,8 +7,8 @@ admin.site.register(
         models.User,
         models.ApparelProduct,
         models.PricingRules,
-        models.Size,
         models.UserDesign,
+        models.Size,
         models.ShippingAddress,
         models.BillingAddress,
         models.Order
