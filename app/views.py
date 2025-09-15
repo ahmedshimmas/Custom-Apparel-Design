@@ -629,24 +629,47 @@ class ListUserViewSet(GenericViewSet , ListModelMixin):
     #     serializer = serializers.ViewUserSerializer(user)
     #     return Response(serializer.data)   
 
-class ViewUserViewSet(GenericViewSet , ListModelMixin):
-    permission_classes = [IsAdminUser ,IsAuthenticated]
-   
-    def list(self ,request, pk=None):
-        user =  User.objects.get(id=pk)
-        serializer =serializers.ViewUserSerializer(user)
-        
-        user_orders  = models.Order.objects.filter(user_id = pk)
+from rest_framework.viewsets import GenericViewSet
+from rest_framework.mixins import RetrieveModelMixin
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
+from django.db.models import Sum
+
+from django.contrib.auth import get_user_model
+from . import serializers, models
+
+User = get_user_model()
+
+
+class ViewUserViewSet(GenericViewSet, RetrieveModelMixin):
+    permission_classes = [IsAdminUser, IsAuthenticated]
+    queryset = User.objects.all()
+    serializer_class = serializers.ViewUserSerializer
+
+    def retrieve(self, request, pk=None):
+        # get user object
+        user = self.get_object()
+        serializer = self.get_serializer(user)
+
+        # get user's orders
+        user_orders = models.Order.objects.filter(user=user)
         total_orders = user_orders.count()
-        total_spent = user_orders.aggregate(orders_sum = Sum('total_amount'))['orders_sum'] or 0
-        orders = models.Order.objects.order_by('order_date')[:6]
-        
+        total_spent = user_orders.aggregate(
+            orders_sum=Sum('total_amount')
+        )['orders_sum'] or 0
+
+        # recent 6 orders
+        recent_orders = user_orders.order_by('-created_at')[:6]
+        recent_orders_data = serializers.OrderSerializer(recent_orders, many=True).data
+
         return Response({
-            "total_user_orders":total_orders,
-            "total_spent":total_spent,
-            "list_of_recent_orders":orders,
-            "users":serializer.data}, status=status.HTTP_200_OK)
-    
+            "user": serializer.data,
+            "total_user_orders": total_orders,
+            "total_spent": total_spent,
+            "list_of_recent_orders": recent_orders_data,
+        }, status=status.HTTP_200_OK)
+
   
 # class ProductCatalogViewset(viewsets.ModelViewSet):
 #     permission_classes = [IsAdminUser , IsAuthenticated]

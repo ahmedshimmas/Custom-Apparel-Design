@@ -85,9 +85,8 @@ class User(AbstractUser):
 
 class ApparelProduct(models.Model):
 
-    product_id = models.CharField(unique=True ,blank=True ,null=True)
-    
-    product_name = models.CharField(max_length=50)
+    product_id = models.CharField(unique=True, blank=True, null=True)
+    product_apparel = models.OneToOneField('PricingRules', related_name='apparel_product', on_delete=models.CASCADE, null=True, blank=True)
     sizes_available = models.ManyToManyField('Size', related_name='apparel_sizes')
     color_options = models.CharField(max_length=100)
     description = models.TextField()
@@ -115,7 +114,7 @@ class ApparelProduct(models.Model):
 
 
     def __str__(self):
-        return self.product_name
+        return self.product_id
 
 
 class Size(models.Model):
