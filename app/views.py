@@ -622,7 +622,12 @@ class ListUserViewSet(GenericViewSet , ListModelMixin):
         user.is_active = True
         user.save()
         return Response({'details':f'user {pk} reactivated successfully!'}) 
-        
+    @action(detail=True , methods=['get'] , url_path='view_user')
+    def view_order(self , request , pk=None):
+        query_set = models.User.objects.all()
+        user = get_object_or_404(query_set , pk=pk)
+        serializer = serializers.ViewUserSerializer(user)
+        return Response(serializer.data)   
 
 class ViewUserViewSet(GenericViewSet , ListModelMixin):
     permission_classes = [IsAdminUser ,IsAuthenticated]

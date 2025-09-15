@@ -19,7 +19,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Add custom user data to the response
         data['user'] = {
             'id': self.user.id,
-            'role': self.user.role,
             'first_name': self.user.first_name,
             'last_name': self.user.last_name,
             'phone_number': self.user.phone_number,
@@ -35,8 +34,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id',
-            'role',
+            # 'role'
             'first_name',
             'last_name',
             'phone_number',
@@ -60,20 +58,20 @@ class UserSerializer(serializers.ModelSerializer):
         return attrs
     
     def create(self, validated_data):
+        request = self.context.get('request')
         password = validated_data.pop('password')
         validated_data.pop('confirm_password')
         user = User(**validated_data)
-        user.set_password(password)
         user.username = user.email
-        user.is_active = False
-        user.save()
-        if user.is_superuser:
+        user.set_password(password) 
+        if not user.is_superuser:  
+            user.is_active = False
+            user.save()
+            send_welcome_otp.delay(user.id)
+        else:
             user.is_active = True
             user.save()
-        else:
-            send_welcome_otp.delay(user.id)
         return user
-    
 
 
 class ResendOTPSerializer(serializers.Serializer):
@@ -284,44 +282,36 @@ class PatchUserNotificationSerializer(serializers.ModelSerializer):
         ]
 
 class ApparelProductSerializer(serializers.ModelSerializer):
-    product_name = serializers.CharField(source='product.product_name', read_only=True)
-    base_price = serializers.DecimalField(source='product.base_price', max_digits=4, decimal_places=2, read_only=True)
-    print_methods = serializers.CharField(source='product.printing_method', read_only=True)
-    
+    product_name= serializers.CharField(source = 'product_apparel.product_name' , read_only = True)
+    base_price = serializers.DecimalField(source = 'product_apparel.base_price' , read_only = True , max_digits=5 , decimal_places=2)
+    printing_method = serializers.CharField(source = 'product_apparel.printing_method' , read_only = True)
+    # extra_kwargs = {'product_apparel': {"write_only":True},}
+
     class Meta:
         model = models.ApparelProduct
         fields = [
             'id',
-            'product',
             'product_name',
             'base_price',
-            'print_methods',
-            'sizes_available',
             'color_options',
+            'printing_method',
+            'sizes_available',
             'description',
             'upload_image',
             'is_active',
-            'created_at'
+            'created_at',
+            'product_apparel'
         ]
+        
     
-    def validate(self, attrs):
-        print(attrs)
-        return super().validate(attrs)
-
     def to_representation(self, instance):
-        data = super().to_representation(instance)
-        size = instance.sizes_available
+        data = super().to_representation(instance) 
         data['sizes_available'] = [
-                {
-                    'size_id': size.id,
-                    'size_name': size.name
-                }
-                for size in instance.sizes_available.all()
-            ]
+            str(name) for name in instance.sizes_available.all()
+        ]
         return data
 
 class PricingRuleSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = models.PricingRules
         fields = [
@@ -333,6 +323,16 @@ class PricingRuleSerializer(serializers.ModelSerializer):
             'ai_design_cost',
             'custom_design_upload_cost'
         ]
+
+    # def to_representation(self, instance):
+    #     data = super().to_representation(instance)
+    #     product = instance
+
+    #     data['product_name'] = {
+    #         "id": product.id,
+    #         "name": product.product_name
+    #     }
+    #     return data
 
 
 class SizeSerializer(serializers.ModelSerializer):
@@ -622,7 +622,6 @@ class ListUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.User
         fields = [
-            'id',
             'user_id',
             'full_name',
             'profile_picture',

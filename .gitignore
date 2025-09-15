@@ -33,3 +33,5 @@ Dockerfile
 Thumbs.db
 *.db
 *.DS_Store
+
+.gitignore

@@ -85,9 +85,9 @@ class User(AbstractUser):
 
 class ApparelProduct(models.Model):
 
-    product_uid = models.CharField(unique=True, blank=True, null=True)
-    product = models.OneToOneField('PricingRules', on_delete=models.CASCADE, blank=True, null=True)
+    product_id = models.CharField(unique=True ,blank=True ,null=True)
     
+    product_name = models.CharField(max_length=50)
     sizes_available = models.ManyToManyField('Size', related_name='apparel_sizes')
     color_options = models.CharField(max_length=100)
     description = models.TextField()
@@ -95,7 +95,6 @@ class ApparelProduct(models.Model):
     is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
-
     
     def save(self, *args, **kwargs):
         if not self.product_id:
@@ -116,7 +115,7 @@ class ApparelProduct(models.Model):
 
 
     def __str__(self):
-        return self.product.get_product_name_display() if self.product else "Unnamed in PricingRules"
+        return self.product_name
 
 
 class Size(models.Model):
