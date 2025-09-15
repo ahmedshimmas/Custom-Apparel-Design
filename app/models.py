@@ -85,8 +85,8 @@ class User(AbstractUser):
 
 class ApparelProduct(models.Model):
 
-    product_uid = models.CharField(unique=True, blank=True, null=True)
-    product = models.OneToOneField('PricingRules', on_delete=models.CASCADE, blank=True, null=True)
+    product_uid = models.CharField(unique=True, blank=True, null=True , max_length=50) 
+    product = models.OneToOneField('PricingRules', on_delete=models.CASCADE, blank=True, null=True , related_name='pricing_rule')
     
     sizes_available = models.ManyToManyField('Size', related_name='apparel_sizes')
     color_options = models.CharField(max_length=100)
@@ -253,14 +253,14 @@ class BillingAddress(models.Model):
 
 class Order(models.Model):
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_orders')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_orders' , null=True , blank=True)
     user_design = models.ForeignKey(UserDesign, on_delete=models.CASCADE, related_name='design_orders')
     shipping_address = models.OneToOneField(ShippingAddress, on_delete=models.SET_NULL, null=True, related_name='shipping_orders')
 
     order_id = models.CharField(max_length=10, unique=True)
 
     design_type = models.CharField(max_length=20)
-    apparel = models.ForeignKey(ApparelProduct, on_delete=models.SET_NULL, null=True)
+    apparel = models.ForeignKey(ApparelProduct, on_delete=models.SET_NULL, null=True , related_name='apparel')
     color = models.CharField(max_length=20) 
     print_method = models.CharField(max_length=20) 
     quantity = models.IntegerField(default=1)
@@ -281,15 +281,16 @@ class Order(models.Model):
 
     def calculate_price(self):
         try:
-            pricing = self.apparel.product
-            base_price = self.apparel.product.base_price if self.apparel.product.base_price else 0
-        except PricingRules.DoesNotExist:
-            base_price = None
+            pricing = self.apparel.product if self.apparel and self.apparel.product else None
+            base_price = pricing.base_price if pricing and pricing.base_price else 0
+        except AttributeError:
+            pricing = None
+            base_price = 0
 
         # base_price = pricing.base_price if pricing else 0
         ai_cost = pricing.ai_design_cost if self.design_type == 'ai' and pricing is not None  else 0
         upload_cost = pricing.custom_design_upload_cost if self.design_type == 'upload' else 0
-        print_cost = pricing.print_cost
+        print_cost = pricing.print_cost if pricing is not None else 0
 
         # Calculate price for one item
         per_item_price = base_price + ai_cost + upload_cost + print_cost

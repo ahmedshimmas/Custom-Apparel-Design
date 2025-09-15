@@ -287,21 +287,22 @@ class ApparelProductSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.product_name', read_only=True)
     base_price = serializers.DecimalField(source='product.base_price', max_digits=4, decimal_places=2, read_only=True)
     print_methods = serializers.CharField(source='product.printing_method', read_only=True)
+    quantity = serializers.CharField(source = 'apparel.quantity' , read_only = True)
     
     class Meta:
         model = models.ApparelProduct
         fields = [
             'id',
-            'product',
+            'product_uid',
             'product_name',
-            'base_price',
-            'print_methods',
             'sizes_available',
             'color_options',
-            'description',
-            'upload_image',
+            'print_methods',
+            'quantity',
+            'created_at',
+            'base_price',
             'is_active',
-            'created_at'
+            
         ]
     
     def validate(self, attrs):
@@ -339,7 +340,6 @@ class SizeSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Size
         fields = '__all__'
-        ordering = ['name']
 
 
 
@@ -454,9 +454,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Order
         fields = [
-            'user',
             'user_design',
-            'shipping_address',
             'order_id',
             'design_type',
             'apparel',
@@ -465,14 +463,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             'quantity',
             'date',
             'payment',
-            'order_status',
-            'order_tracking_status',
-            'subtotal',
-            'discount_applied',
-            'shipping_fee',
-            'total_amount',
-            'created_at',
-            'estimated_delivery_date'
+            'order_status'
         ]
         read_only_fields = [
             'user',
@@ -493,11 +484,14 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         user_design = validated_data.get('user_design')
         apparel = validated_data.get('apparel')
 
-        validated_data['user'] = user
+        if not user_design:
+            raise ValidationError({'user_design': 'This field is required and must be valid.'})
+
+        validated_data['print_method'] = getattr(user_design, 'printing_method', None) or getattr(apparel, 'printing_method', None)
         validated_data['design_type'] = user_design.design_type
-        validated_data['color'] = apparel.color_options
-        validated_data['print_method'] = apparel.print_method
-        validated_data['estimated_delivery_date'] = timezone.now().date() + timedelta(days=5)
+        validated_data['color'] = user_design.color
+        validated_data['print_method'] = user_design.style
+        validated_data['estimated_delivery_date'] = (timezone.now() + timedelta(days=5)).date()
 
         return models.Order.objects.create(**validated_data)
 
@@ -538,24 +532,22 @@ class UserOrderSerializer(serializers.ModelSerializer):
     
 
 class ListOrderSerializer(serializers.ModelSerializer):
-    design_type = serializers.CharField(source = 'product.design_type',read_only=True)
-    full_name = serializers.ReadOnlyField(source="user.get_full_name")
-    print_method = serializers.CharField(source='product.print_method', read_only=True)
-    apparel_name = serializers.CharField(source = 'apparel.product_name' , read_only = True)
+    apparel_name = serializers.CharField(source = 'apparel.product.product_name' , read_only = True)
 
     
     class Meta:
         model = models.Order
         fields =[
+            'id',
             'order_id',
-            'full_name',
             'design_type',
             'apparel_name',
             'color',
             'print_method',
             'quantity',
-            'created_at',
+            'date',
             'payment',
+            'order_status'
             ]
 
 
@@ -570,7 +562,7 @@ class TrackOrderSerializer(serializers.ModelSerializer):
     print_method = serializers.CharField(source ='user_design.style' ,read_only = True)
     color = serializers.CharField(source = 'user_design.color' , read_only = True)
     size = serializers.CharField(source = 'user_design.shirt_size' , read_only = True)
-
+    image = serializers.ImageField(source = 'user_design.image' , read_only = True)
     class Meta:
         model = models.Order
         fields = [
@@ -593,6 +585,7 @@ class TrackOrderSerializer(serializers.ModelSerializer):
             'discount_applied',
             'shipping_fee',
             'total_amount',
+            'image'
             ]
         
     def to_representation(self, instance):

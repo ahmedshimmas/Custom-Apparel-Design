@@ -32,9 +32,11 @@ router.register(r'manage_orders', ManageOrdersViewset, basename='manage_order')
 router.register(r'list_orders', ListOrderViewset, basename='list_all_orders')
 router.register(r'user_management', UserManagementViewset, basename='manage_user')
 router.register(r'list_user', ListUserViewSet, basename='list_all_user')
+router.register(r'view_user' ,ViewUserViewSet , basename='view_user')
 router.register(r'pricing-rules', PricingRulesView, basename='pricing')
 router.register(r'apparel-products', ApparelProductView, basename='apparel-product')
 router.register(r'apparel-sizes', ApparelSizesView, basename='apparel-sizes')
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
