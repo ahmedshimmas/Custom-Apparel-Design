@@ -539,23 +539,23 @@ class UserOrderSerializer(serializers.ModelSerializer):
 
 class ListOrderSerializer(serializers.ModelSerializer):
     design_type = serializers.CharField(source = 'product.design_type',read_only=True)
-    full_name = serializers.ReadOnlyField(source="user.get_full_name")
-    print_method = serializers.CharField(source='product.print_method', read_only=True)
-    apparel_name = serializers.CharField(source = 'apparel.product_name' , read_only = True)
+    # full_name = serializers.ReadOnlyField(source="user.get_full_name")
+    # print_method = serializers.CharField(source='product.print_method', read_only=True)
+    # apparel_name = serializers.CharField(source = 'apparel.product_name' , read_only = True)
 
     
     class Meta:
         model = models.Order
         fields =[
             'order_id',
-            'full_name',
             'design_type',
-            'apparel_name',
+            'apparel',
             'color',
             'print_method',
             'quantity',
             'created_at',
             'payment',
+            'order_status'
             ]
 
 
