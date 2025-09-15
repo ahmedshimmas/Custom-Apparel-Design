@@ -542,7 +542,6 @@ class ListOrderViewset(GenericViewSet , ListModelMixin):
         
         
         serializer = serializers.ListOrderSerializer(show_orders , many=True)
-        print(serializer)
         return Response(serializer.data)
 
     @action(detail=True , methods=['get'] , url_path='view_orders')

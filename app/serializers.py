@@ -541,7 +541,6 @@ class ListOrderSerializer(serializers.ModelSerializer):
     design_type = serializers.CharField(source = 'product.design_type',read_only=True)
     full_name = serializers.ReadOnlyField(source="user.get_full_name")
     print_method = serializers.CharField(source='product.print_method', read_only=True)
-    profile_picture = serializers.CharField(source = 'user.profile_picture' ,read_only = True)
     apparel_name = serializers.CharField(source = 'apparel.product_name' , read_only = True)
 
     
@@ -549,7 +548,6 @@ class ListOrderSerializer(serializers.ModelSerializer):
         model = models.Order
         fields =[
             'order_id',
-            'profile_picture',
             'full_name',
             'design_type',
             'apparel_name',
