@@ -25,6 +25,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'phone_number': self.user.phone_number,
             'email': self.user.email,
             'consent': self.user.consent,
+            'is_superuser': self.user.is_superuser
         }
 
         return data
@@ -42,8 +43,9 @@ class UserSerializer(serializers.ModelSerializer):
             'email',
             'password',
             'confirm_password',
-            'consent'
-                ]
+            'consent',
+            'is_superuser'
+            ]
         extra_kwargs = {
                 'password': {'write_only': True},
             }

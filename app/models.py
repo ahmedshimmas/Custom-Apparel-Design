@@ -281,11 +281,12 @@ class Order(models.Model):
 
     def calculate_price(self):
         try:
-            pricing = self.apparel.pricing_rule
+            pricing = self.apparel.product
+            base_price = self.apparel.product.base_price if self.apparel.product.base_price else 0
         except PricingRules.DoesNotExist:
-            pricing = None
+            base_price = None
 
-        base_price = pricing.base_price if pricing else 0
+        # base_price = pricing.base_price if pricing else 0
         ai_cost = pricing.ai_design_cost if self.design_type == 'ai' and pricing is not None  else 0
         upload_cost = pricing.custom_design_upload_cost if self.design_type == 'upload' else 0
         print_cost = pricing.print_cost
