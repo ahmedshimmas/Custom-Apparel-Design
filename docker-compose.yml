@@ -1,0 +1,55 @@
+version: '3.7'
+
+services:
+  django:
+    build: .
+    container_name: "CAD_web"
+    entrypoint: ["/entrypoint.sh"]
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+  
+  db:
+    image: postgres:17
+    container_name: "CAD_db"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    ports:
+      - "5434:5432"
+    env_file:
+      - ./.env
+  
+  celery:
+    build: .
+    container_name: "CAD_celery"
+    command: celery -A project worker -l info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - django
+      - db
+      - redis
+  
+  redis:
+    image: redis:7
+    container_name: "CAD_redis"
+    ports:
+      - "6378:6379"
+    env_file:
+      - .env
+    
+volumes:
+  postgres_data:
+    

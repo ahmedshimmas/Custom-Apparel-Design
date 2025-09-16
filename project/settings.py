@@ -173,6 +173,9 @@ SIMPLE_JWT = {
 }
 
 
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND')
+
 
 
 #for smtp email configuration (import send_email, use send_email(subject, message, sender, to_email))

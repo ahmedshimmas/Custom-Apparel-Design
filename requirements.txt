@@ -7,6 +7,7 @@ django-cors-headers==4.7.0
 sympy==1.13.3
 djangorestframework-api-key==3.1.0
 celery==5.5.0
+redis==6.2.0
 django-celery-beat==2.8.0
 django-redis==5.4.0
 django-extensions==4.1
@@ -18,6 +19,7 @@ psycopg==3.2.9
 python-dotenv
 django-environ==0.12.0
 twilio==9.6.2
+pillow==11.3.0
 
 
 

@@ -14,7 +14,8 @@ class Command(BaseCommand):
                 username="Super Admin",
                 is_superuser=True,
                 role = 'admin'
-            )
+            )                
             self.stdout.write(self.style.SUCCESS("Superuser created."))
         else:
+            User.objects.filter(is_superuser=True).update(is_active=True)
             self.stdout.write(self.style.WARNING("Superuser already exists."))

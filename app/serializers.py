@@ -159,7 +159,7 @@ class PatchUserProfileSerializer(serializers.ModelSerializer):
 
     def get_shipping_address(self, instance):
 
-        default = models.ShippingAddress.objects.filter(user=self.context['request'].user).first() #returns an instance or None
+        default = models.ShippingAddress.objects.filter(user=self.context['request'].user).first() 
         
         if default:
             return {
@@ -266,7 +266,7 @@ class PatchUserNotificationSerializer(serializers.ModelSerializer):
 
 class ApparelProductSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.product_name', read_only=True)
-    base_price = serializers.DecimalField(source='product.base_price', max_digits=4, decimal_places=2, read_only=True)
+    base_price = serializers.DecimalField(source='product.base_price', max_digits=6, decimal_places=2, read_only=True)
     print_methods = serializers.CharField(source='product.printing_method', read_only=True)
     
     class Meta:
@@ -332,6 +332,7 @@ class UserDesignSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.UserDesign
         fields = [
+            'id',
             'user', 
             'apparel',
             'design_type',
@@ -436,6 +437,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Order
         fields = [
+            'id',
             'user',
             'user_design',
             'shipping_address',
@@ -502,6 +504,7 @@ class UserOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Order
         fields = [
+            'id',
             'profile_picture',
             'full_name',
             'design_type',
@@ -522,6 +525,7 @@ class ListOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Order
         fields =[
+            'id',
             'order_id',
             'design_type',
             'apparel_name',
@@ -550,6 +554,7 @@ class TrackOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Order
         fields = [
+            'id',
             'order_id',
             'customer_name',
             'email',
@@ -618,6 +623,7 @@ class ViewUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.User
         fields = [
+            'id',
             'profile_picture',
             'first_name',
             'last_name',
@@ -634,6 +640,7 @@ class AdminUserViewOrdersSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Order
         fields = [
+            'id',
             'order_id',
             'print_method',
             'quantity',

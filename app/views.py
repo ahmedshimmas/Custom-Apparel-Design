@@ -64,17 +64,37 @@ class LoginView(APIView):
 
         tokens = utils.get_tokens_for_user(user)
 
+        shipping = getattr(user, "shipping_address", None)
+
         return Response({
             **tokens,
             "user": {
                 "id": user.id,
                 "role": user.role,
+                "profile_picture": user.profile_picture.url if user.profile_picture else "",
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "phone_number": user.phone_number,
                 "email": user.email,
                 "consent": user.consent,
                 "is_active": user.is_active,
+                "shipping_address": {
+                    'full_name': shipping.full_name if shipping else "",
+                    'phone_number': shipping.phone_number if shipping else "",
+                    'email': shipping.email if shipping else "",
+                    'street_address': shipping.street_address if shipping else "",
+                    'city': shipping.city if shipping else "",
+                    'postal_code': shipping.postal_code if shipping else "",
+                    'province_state': shipping.province_state if shipping else "",
+                    'country': shipping.country if shipping else ""
+                },
+                "notifications": {
+                    'order_confirmation_email': user.order_confirmation_email,
+                    'payment_success_notification': user.payment_success_notification,
+                    'shipping_delivery_updates': user.shipping_delivery_updates,
+                    'AI_design_approvals_alerts': user.AI_design_approvals_alerts,
+                    'account_activity_alerts': user.account_activity_alerts
+                }
             }
         })
 
@@ -269,7 +289,10 @@ class UserViewset(GenericViewSet, CreateModelMixin):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(
-            {'detail': 'user shipping patched successfully'},
+            {
+                'detail': 'user shipping patched successfully',
+                'data': serializer.data
+            },
             status = status.HTTP_200_OK
             )
 
@@ -689,7 +712,8 @@ class ListUserViewSet(GenericViewSet , ListModelMixin):
             user = User.objects.get(id=pk)
         except User.DoesNotExist:
             return Response('User with this ID does not exist')
-
+        if user.is_superuser:
+            return Response({'details': 'Cannot suspend a superuser'})
         user.is_active = False
         user.save()
         return Response({
