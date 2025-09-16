@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenBlacklistView
+from rest_framework_simplejwt.views import TokenRefreshView, TokenBlacklistView
 from app.views import *
 
 router = DefaultRouter()
@@ -32,6 +32,7 @@ router.register(r'manage_orders', ManageOrdersViewset, basename='manage_order')
 router.register(r'list_orders', ListOrderViewset, basename='list_all_orders')
 router.register(r'user_management', UserManagementViewset, basename='manage_user')
 router.register(r'list_user', ListUserViewSet, basename='list_all_user')
+router.register(r'view_user', ViewUserViewSet, basename='view_user')
 router.register(r'pricing-rules', PricingRulesView, basename='pricing')
 router.register(r'apparel-products', ApparelProductView, basename='apparel-product')
 router.register(r'apparel-sizes', ApparelSizesView, basename='apparel-sizes')
@@ -39,7 +40,7 @@ router.register(r'apparel-sizes', ApparelSizesView, basename='apparel-sizes')
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include(router.urls)),
-    path('user/login/', CustomTokenObtainPairView.as_view()),
+    path('user/login/', LoginView.as_view()),
     path('user/refresh-token/', TokenRefreshView.as_view()),
     path('user/logout/', TokenBlacklistView.as_view()),
 ]

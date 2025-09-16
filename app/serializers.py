@@ -5,30 +5,13 @@ from app.tasks import send_welcome_otp
 from django.contrib.auth import get_user_model
 from datetime import timedelta
 from django.utils import timezone
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-# from django.contrib.auth.hashers import check_password
-# from django.utils import timezone
+
 
 User = get_user_model()
 
-class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-
-    def validate(self, attrs):
-        data = super().validate(attrs)
-
-        # Add custom user data to the response
-        data['user'] = {
-            'id': self.user.id,
-            'role': self.user.role,
-            'first_name': self.user.first_name,
-            'last_name': self.user.last_name,
-            'phone_number': self.user.phone_number,
-            'email': self.user.email,
-            'consent': self.user.consent,
-            'is_superuser': self.user.is_superuser
-        }
-
-        return data
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
 
 class UserSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)
@@ -36,7 +19,6 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id',
-            'role',
             'first_name',
             'last_name',
             'phone_number',
@@ -44,7 +26,6 @@ class UserSerializer(serializers.ModelSerializer):
             'password',
             'confirm_password',
             'consent',
-            'is_superuser'
             ]
         extra_kwargs = {
                 'password': {'write_only': True},
@@ -293,15 +274,16 @@ class ApparelProductSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'product',
+            'product_uid',
             'product_name',
-            'base_price',
-            'print_methods',
-            'sizes_available',
-            'color_options',
             'description',
             'upload_image',
-            'is_active',
-            'created_at'
+            'sizes_available',
+            'color_options',
+            'print_methods',
+            'created_at',
+            'base_price',
+            'is_active'
         ]
     
     def validate(self, attrs):
@@ -530,25 +512,17 @@ class UserOrderSerializer(serializers.ModelSerializer):
             'payment',
             'order_status'
         ]
-
-    # def get_full_name(self ,obj):
-    #     first = obj.user.first_name or ""
-    #     second = obj.user.last_name or ""
-    #     return f"{first} {second}".strip()
     
 
 class ListOrderSerializer(serializers.ModelSerializer):
-    design_type = serializers.CharField(source = 'product.design_type',read_only=True)
-    full_name = serializers.ReadOnlyField(source="user.get_full_name")
-    print_method = serializers.CharField(source='product.print_method', read_only=True)
-    apparel_name = serializers.CharField(source = 'apparel.product_name' , read_only = True)
+    apparel_name = serializers.CharField(source = 'apparel.product.product_name' , read_only = True)
+    print_method = serializers.CharField(source='apparel.product.printing_method', read_only=True)
 
     
     class Meta:
         model = models.Order
         fields =[
             'order_id',
-            'full_name',
             'design_type',
             'apparel_name',
             'color',
@@ -556,6 +530,7 @@ class ListOrderSerializer(serializers.ModelSerializer):
             'quantity',
             'created_at',
             'payment',
+            'order_status'
             ]
 
 
@@ -570,6 +545,7 @@ class TrackOrderSerializer(serializers.ModelSerializer):
     print_method = serializers.CharField(source ='user_design.style' ,read_only = True)
     color = serializers.CharField(source = 'user_design.color' , read_only = True)
     size = serializers.CharField(source = 'user_design.shirt_size' , read_only = True)
+    image = serializers.ImageField(source = 'user_design.image', read_only=True)
 
     class Meta:
         model = models.Order
@@ -593,6 +569,7 @@ class TrackOrderSerializer(serializers.ModelSerializer):
             'discount_applied',
             'shipping_fee',
             'total_amount',
+            'image'
             ]
         
     def to_representation(self, instance):
@@ -638,9 +615,6 @@ class ListUserSerializer(serializers.ModelSerializer):
 
 class ViewUserSerializer(serializers.ModelSerializer):
 
-    total_orders = serializers.IntegerField(read_only=True)
-    total_spent = serializers.DecimalField(max_digits=8, decimal_places=2, read_only=True)
-
     class Meta:
         model = models.User
         fields = [
@@ -651,8 +625,21 @@ class ViewUserSerializer(serializers.ModelSerializer):
             'email',
             'phone_number',
             'is_active',
-            'total_orders',
-            'total_spent',
+        ]
+
+
+class AdminUserViewOrdersSerializer(serializers.ModelSerializer):
+    print_method = serializers.CharField(source='apparel.product.printing_method', read_only=True)
+
+    class Meta:
+        model = models.Order
+        fields = [
+            'order_id',
+            'print_method',
+            'quantity',
+            'created_at',
+            'payment',
+            'order_status'
         ]
 
 

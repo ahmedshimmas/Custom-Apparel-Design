@@ -1,7 +1,8 @@
 from django.shortcuts import render
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.mixins import CreateModelMixin, ListModelMixin
+from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin
 from rest_framework import viewsets
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
@@ -10,26 +11,72 @@ from django.shortcuts import get_object_or_404
 from datetime import timedelta
 from rest_framework import status
 from django.contrib.auth import get_user_model
-# from app.tasks import send_welcome_otp, password_reset_otp
 from django.utils.encoding import force_str, force_bytes
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
-from project import settings
-# from django.core.mail import send_mail
 from django.core.mail import EmailMultiAlternatives
 from django.db.models import Sum, F
-from .pagination import CustomPagination
-from app import permissions
-# from rest_framework.validators import ValidationError
-from rest_framework_simplejwt.views import TokenObtainPairView
+from django.db.models.functions import TruncWeek, TruncMonth, TruncQuarter, TruncYear
 
-from app import models, serializers, choices
+from app import models, serializers, choices, utils
+from app import permissions
+from .pagination import CustomPagination
+from project import settings
 
 User = get_user_model()
 
+class LoginView(APIView):
+    def post(self, request):
+        serializer = serializers.LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data.get('email')
+        password = serializer.validated_data.get('password')
 
-class CustomTokenObtainPairView(TokenObtainPairView):
-    serializer_class = serializers.CustomTokenObtainPairSerializer
+        if not email or not password:
+            return Response(
+                {"detail": "Email and password are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "No user found with this email"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if not user.check_password(password):
+            return Response(
+                {"detail": "Incorrect password"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if not user.is_active:
+            return Response(
+                {
+                    "detail": "User is inactive. Please verify OTP.",
+                    "is_active": False,
+                    "user_id": user.id,
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        tokens = utils.get_tokens_for_user(user)
+
+        return Response({
+            **tokens,
+            "user": {
+                "id": user.id,
+                "role": user.role,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phone_number": user.phone_number,
+                "email": user.email,
+                "consent": user.consent,
+                "is_active": user.is_active,
+            }
+        })
 
 
 class UserViewset(GenericViewSet, CreateModelMixin):
@@ -444,7 +491,7 @@ class AdminDashboardViewset(viewsets.ViewSet):
     http_method_names = ['get']
 
     def list(self, request):
-        if not request.user.is_staff:
+        if not request.user.is_superuser:
             return Response(
                 {'detail': 'You do not have permission to access this resource.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -460,27 +507,65 @@ class AdminDashboardViewset(viewsets.ViewSet):
         new_customers = models.User.objects.filter(created_at__month = now.month).count()
         cancelled_orders = models.Order.objects.filter(order_status = 'Cancelled').count()
 
-        recent_orders = models.Order.objects.filter(is_active=True).order_by('-created_at')[:5]
-        serializer = serializers.UserOrderSerializer(recent_orders, many=True)
+        # recent_orders = models.Order.objects.filter(is_active=True).order_by('-created_at')[:5]
+        # serializer = serializers.UserOrderSerializer(recent_orders, many=True)
 
-        filter = request.query_params.get('filter', '1M')
-        today = timezone.now().date()
+        # ---- 1M (weekly revenue for current month) ----
+        orders_this_month = models.Order.objects.filter(
+            created_at__year=now.year,
+            created_at__month=now.month
+        ).annotate(week=TruncWeek('created_at')).values('week') \
+         .annotate(value=Sum(F('total_amount') * F('quantity'))) \
+         .order_by('week')
 
-        if filter == '1M':
-            start_date = today - timedelta(days=30)
-        elif filter == '3M':
-            start_date = today - timedelta(days=60)
-        elif filter == '6M':
-            start_date = today - timedelta(days=180)
-        elif filter == '1Y':
-            start_date =  today - timedelta(days=365)
-        else:
-            start_date = None
-        
-        query = models.Order.objects.filter(created_at__gte = start_date) if start_date else models.Order.objects.all()
-        revenue = query.aggregate(
-            total =Sum( F('total_amount') * F('quantity'))
-        )['total'] or 0
+        one_m = []
+        for i, o in enumerate(orders_this_month, start=1):
+            one_m.append({"name": f"Week {i}", "value": o["value"] or 0})
+
+        # ---- 3M (monthly revenue, last 3 months) ----
+        last_3m = now - timedelta(days=90)
+        orders_3m = models.Order.objects.filter(created_at__gte=last_3m) \
+            .annotate(month=TruncMonth('created_at')).values('month') \
+            .annotate(value=Sum(F('total_amount') * F('quantity'))) \
+            .order_by('month')
+
+        three_m = [
+            {"name": o["month"].strftime("%b"), "value": o["value"] or 0}
+            for o in orders_3m
+        ]
+
+        # ---- 6M (two halves: Q1+Q2 and Q3+Q4 style) ----
+        last_6m = now - timedelta(days=180)
+        orders_6m = models.Order.objects.filter(created_at__gte=last_6m) \
+            .annotate(quarter=TruncQuarter('created_at')).values('quarter') \
+            .annotate(value=Sum(F('total_amount') * F('quantity'))) \
+            .order_by('quarter')
+
+        six_m = []
+        for i, o in enumerate(orders_6m, start=1):
+            six_m.append({"name": f"Q{i}", "value": o["value"] or 0})
+
+        # ---- 1Y (2 halves: H1 + H2) ----
+        start_year = now.replace(month=1, day=1)
+        orders_year = models.Order.objects.filter(created_at__gte=start_year) \
+            .annotate(month=TruncMonth('created_at')).values('month') \
+            .annotate(value=Sum(F('total_amount') * F('quantity'))) \
+            .order_by('month')
+
+        h1 = sum(o["value"] or 0 for o in orders_year if o["month"].month <= 6)
+        h2 = sum(o["value"] or 0 for o in orders_year if o["month"].month > 6)
+        one_y = [{"name": "H1", "value": h1}, {"name": "H2", "value": h2}]
+
+        # ---- ALL (last 4 years) ----
+        orders_all = models.Order.objects.annotate(year=TruncYear('created_at')) \
+            .values('year') \
+            .annotate(value=Sum(F('total_amount') * F('quantity'))) \
+            .order_by('year')
+
+        all_data = [
+            {"name": o["year"].year, "value": o["value"] or 0}
+            for o in orders_all
+        ]
                 
         return Response(
             {
@@ -490,8 +575,11 @@ class AdminDashboardViewset(viewsets.ViewSet):
                 'payments_received': payments_received,
                 'new_customers': new_customers,
                 'cancelled_orders': cancelled_orders,
-                'order_revenue': revenue,
-                'Recent_Users_Orders':serializer.data
+                "1M": one_m,
+                "3M": three_m,
+                "6M": six_m,
+                "1Y": one_y,
+                "ALL": all_data,
             },
             status=status.HTTP_200_OK
         )
@@ -533,14 +621,10 @@ class ListOrderViewset(GenericViewSet , ListModelMixin):
 
     def list(self ,request):
         show_orders = models.Order.objects.all().order_by('created_at')
-        print(type(show_orders))
         page = self.paginate_queryset(show_orders)
-        print(page)
         if page is not None:
             serializer = serializers.ListOrderSerializer(page , many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        
+            return self.get_paginated_response(serializer.data)        
         serializer = serializers.ListOrderSerializer(show_orders , many=True)
         return Response(serializer.data)
 
@@ -624,23 +708,33 @@ class ListUserViewSet(GenericViewSet , ListModelMixin):
         return Response({'details':f'user {pk} reactivated successfully!'}) 
         
 
-class ViewUserViewSet(GenericViewSet , ListModelMixin):
+class ViewUserViewSet(GenericViewSet , RetrieveModelMixin):
+    queryset = User.objects.all()
+    serializer_class = serializers.ViewUserSerializer
     permission_classes = [IsAdminUser ,IsAuthenticated]
    
-    def list(self ,request, pk=None):
-        user =  User.objects.get(id=pk)
+    def retrieve(self ,request, pk=None):
+        try:
+            user =  User.objects.get(id=pk)
+        except User.DoesNotExist:
+            raise serializers.ValidationError({
+                'details': 'user with this id not found'
+            })
         serializer =serializers.ViewUserSerializer(user)
         
-        user_orders  = models.Order.objects.filter(user_id = pk)
+        user_orders  = models.Order.objects.filter(user__id=pk)
         total_orders = user_orders.count()
         total_spent = user_orders.aggregate(orders_sum = Sum('total_amount'))['orders_sum'] or 0
-        orders = models.Order.objects.order_by('order_date')[:6]
+        user_orders = models.Order.objects.order_by('created_at')[:6]
+        orders = serializers.AdminUserViewOrdersSerializer(user_orders, many=True).data
         
         return Response({
             "total_user_orders":total_orders,
             "total_spent":total_spent,
-            "list_of_recent_orders":orders,
-            "users":serializer.data}, status=status.HTTP_200_OK)
+            "user_details":serializer.data,
+            "list_of_recent_orders":orders
+            },  status=status.HTTP_200_OK
+            )
     
   
 # class ProductCatalogViewset(viewsets.ModelViewSet):
