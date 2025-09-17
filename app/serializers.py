@@ -354,7 +354,7 @@ class UserDesignSerializer(serializers.ModelSerializer):
     
 
 
-    def validate(self, attrs):
+    def validate(self, attrs):  
         
         apparel = self.instance.apparel if self.instance else attrs.get('apparel')
         selected_size = attrs.get('shirt_size')
@@ -492,6 +492,57 @@ class OrderListSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Order
         fields = '__all__'
+
+class ViewUserOrderDetailsSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source ='user.first_name' ,read_only = True)
+    email = serializers.CharField(source = 'user.email' ,read_only = True)
+    phone_no = serializers.CharField(source = 'user.phone_number' ,read_only = True)
+    billing_address = serializers.CharField(source ='user.billing_address' , read_only = True)
+    color = serializers.CharField(source = 'user_design.color' , read_only = True)
+    size = serializers.CharField(source = 'user_design.shirt_size' , read_only = True)
+    image = serializers.ImageField(source = 'user_design.image', read_only=True)
+    per_unit_price = serializers.CharField(source = 'apparel.product.base_price', read_only=True)
+    apparel_name = serializers.CharField(source = 'apparel.product.product_name', read_only=True)
+
+    class Meta:
+        model = models.Order
+        fields = [
+            'id',
+            'order_id',
+            'customer_name',
+            'phone_no',
+            'email',
+            'shipping_address',
+            'billing_address',
+            'created_at',
+            'quantity',
+            'estimated_delivery_date',
+            'order_status',
+            'image',
+            'apparel_name',
+            'color',
+            'size',
+            'payment',
+            'per_unit_price',
+            'subtotal',
+            ]
+        
+    def to_representation(self, instance):
+
+        data = super().to_representation(instance)
+        user = instance.shipping_address
+
+        data['shipping_address'] = {
+            'full_name': user.full_name,
+            'phone_number': user.phone_number,
+            'email': user.email,
+            'street_address': user.street_address,
+            'city': user.city,
+            'postal_code': user.postal_code,
+            'province_state': user.province_state,
+            'country': user.country
+        }
+        return data
 
 
 #MS work------------------------------------DASHBOARD APIS----------------------------------------

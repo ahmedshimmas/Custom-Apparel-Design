@@ -4,7 +4,8 @@ from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveMode
 from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
@@ -71,7 +72,7 @@ class LoginView(APIView):
             "user": {
                 "id": user.id,
                 "role": user.role,
-                "profile_picture": user.profile_picture.url if user.profile_picture else "",
+                "profile_picture": request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else "",
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "phone_number": user.phone_number,
@@ -303,6 +304,18 @@ class ApparelProductView(viewsets.ModelViewSet):
     serializer_class = serializers.ApparelProductSerializer
     permission_classes = [IsAdminUser]
     pagination_class = CustomPagination
+    authentication_classes = [JWTAuthentication]
+
+    def get_authenticators(self):
+        if self.request.method == 'GET':
+            return []
+        return super().get_authenticators()
+        
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [permission() for permission in self.permission_classes]
+        
     
 
 
@@ -317,6 +330,17 @@ class ApparelSizesView(viewsets.ModelViewSet):
     queryset = models.Size.objects.all()
     serializer_class = serializers.SizeSerializer
     permission_classes = [IsAdminUser]
+    authentication_classes = [JWTAuthentication]
+
+    def get_authenticators(self):
+        if self.request.method == 'GET':
+            return []
+        return super().get_authenticators()
+        
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [permission() for permission in self.permission_classes]
     
 
 
@@ -325,10 +349,19 @@ class UserDesignView(viewsets.ModelViewSet):
     serializer_class = serializers.UserDesignSerializer
     permission_classes = [permissions.IsOwnerOrAdmin]
 
+    def create(self, request, *args, **kwargs):
+        print("RAW REQUEST DATA:", request.data)   
+        print("FILES:", request.FILES)
+
+        #RAW REQUEST DATA: <QueryDict: {'id': ['3'], 'user': ['3'], 'apparel': ['1'], 'design_type': ['ai'], 'prompt': ['A cute cartoon banana character relaxing on a blue and white pool float in a small pool of water. The banana is holding a smartphone and wearing sunglasses.'], 'image': ['http://192.168.10.80:8000/media/user/product-design/images/design_c9kndUW.png'], 'font': ['Arial'], 'style': ['screen_printing'], 'shirt_size': ['4'], 'color': ['red'], 'created_at': ['2025-09-17T06:41:50.682479Z'], 'is_draft': ['true'], 'order_quantity': ['7']}>
+        
+        #FILES: <MultiValueDict: {}>
+        
+        return super().create(request, *args, **kwargs)
     def get_queryset(self):
         if self.request.user.is_superuser:
             return models.UserDesign.objects.all()
-        return models.UserDesign.objects.filter(user=self.request.user)           
+        return models.UserDesign.objects.filter(user=self.request.user, is_draft=True)
 
 
 
@@ -367,6 +400,8 @@ class OrderView(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return serializers.OrderCreateSerializer
+        elif self.action == 'retrieve':
+            return serializers.ViewUserOrderDetailsSerializer
         return serializers.OrderListSerializer
 
 

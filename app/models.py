@@ -170,7 +170,7 @@ class UserDesign(models.Model):
 
     font = models.CharField(max_length=30, blank=True, null=True)
     style = models.CharField(max_length=20, choices=ProductPrintMethods.choices, default=ProductPrintMethods.embroidary)
-    shirt_size = models.CharField(max_length=20, choices=ProductSizes.choices, default=ProductSizes.SMALL)
+    shirt_size = models.ForeignKey(Size, on_delete=models.CASCADE, related_name='user_design_size')
     color = models.CharField(max_length=30, default='black')
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -249,13 +249,14 @@ class BillingAddress(models.Model):
         return f'User {self.user.get_full_name()} Billing Address'
 
 
-
+def get_estimated_delivery_date():
+    return timezone.now() + timedelta(days=5)
 
 class Order(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_orders')
     user_design = models.ForeignKey(UserDesign, on_delete=models.CASCADE, related_name='design_orders')
-    shipping_address = models.OneToOneField(ShippingAddress, on_delete=models.SET_NULL, null=True, related_name='shipping_orders')
+    shipping_address = models.ForeignKey(ShippingAddress, on_delete=models.SET_NULL, null=True, related_name='shipping_orders')
 
     order_id = models.CharField(max_length=10, unique=True)
 
@@ -277,7 +278,7 @@ class Order(models.Model):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    estimated_delivery_date = models.DateTimeField(default=timezone.now() + timedelta(days=5))
+    estimated_delivery_date = models.DateTimeField(default=get_estimated_delivery_date)
 
     def calculate_price(self):
         try:
