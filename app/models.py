@@ -6,7 +6,8 @@ from datetime import timedelta
 import random
 import string
 from django.utils.translation import gettext_lazy as _
-# import uuid
+from decimal import Decimal
+
 
 
 class User(AbstractUser):
@@ -98,19 +99,19 @@ class ApparelProduct(models.Model):
 
     
     def save(self, *args, **kwargs):
-        if not self.product_id:
+        if not self.product_uid:
             last_product = ApparelProduct.objects.order_by('-id').first()  
 
-            if last_product and last_product.product_id:
+            if last_product and last_product.product_uid:
                 try:
-                    last_id = int(last_product.product_id.split('-')[1])
+                    last_id = int(last_product.product_uid.split('-')[1])
                 except (IndexError, ValueError):
                     last_id = 100
             else:
                 last_id= 100
 
             new_id = last_id + 1
-            self.product_id = f'P-{new_id}'
+            self.product_uid = f'P-{new_id}'
 
         super().save(*args, **kwargs)  
 
@@ -144,17 +145,6 @@ class PricingRules(models.Model):
     def __str__(self):
         return f'{self.product_name} - {self.base_price}'
 
-  # def to_representation(self, instance):
-    #     data = super().to_representation(instance)
-    #     size = instance.sizes_available
-    #     data['sizes_available'] = [
-    #             {
-    #                 'size_id': size.id,
-    #                 'size_name': size.name
-    #             }
-    #             for size in instance.sizes_available.all()
-    #         ]
-    #     return data
 
 
 class UserDesign(models.Model):
@@ -166,7 +156,8 @@ class UserDesign(models.Model):
     design_type = models.CharField(max_length=10, choices=UserDesignType.choices, default=UserDesignType.AI_GENERATED)
 
     prompt = models.TextField(blank=True, null=True)
-    image = models.ImageField(upload_to='user/product-design/images/', null=True, blank=True)
+    image_front = models.ImageField(upload_to='user/product-design/front_images/', null=True, blank=True)
+    image_back = models.ImageField(upload_to='user/product-design/back_images/', null=True, blank=True)
 
     font = models.CharField(max_length=30, blank=True, null=True)
     style = models.CharField(max_length=20, choices=ProductPrintMethods.choices, default=ProductPrintMethods.embroidary)
@@ -272,7 +263,6 @@ class Order(models.Model):
     order_tracking_status = models.CharField(max_length=20, choices=OrderTrackingStatus.choices, default=OrderTrackingStatus.ORDER_PLACED)
 
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
-    from decimal import Decimal
     discount_applied = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('0.00'))
     shipping_fee = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('10.00'))
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)

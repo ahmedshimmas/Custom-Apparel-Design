@@ -40,6 +40,7 @@ router.register(r'apparel-sizes', ApparelSizesView, basename='apparel-sizes')
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include(router.urls)),
+    path('user/order-from-draft/', OrderFromDraftAPIView.as_view()),
     path('user/login/', LoginView.as_view()),
     path('user/refresh-token/', TokenRefreshView.as_view()),
     path('user/logout/', TokenBlacklistView.as_view()),

@@ -337,7 +337,8 @@ class UserDesignSerializer(serializers.ModelSerializer):
             'apparel',
             'design_type',
             'prompt',
-            'image',
+            'image_front',
+            'image_back',
             'font',
             'style',
             'shirt_size',
@@ -398,12 +399,16 @@ class UserDesignSerializer(serializers.ModelSerializer):
                 print_method=design.style,
                 quantity=quantity,
                 estimated_delivery_date=timezone.now() + timedelta(days=5),
-                subtotal=0,  # Will be calculated in save()
+                subtotal=0,  
                 total_amount=0,
             )
 
         return design
 
+
+class OrderFromDraftSerializer(serializers.Serializer):
+    user_design_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(min_value=1)
 
 
 class ShippingAddressSerializer(serializers.ModelSerializer):
@@ -500,7 +505,8 @@ class ViewUserOrderDetailsSerializer(serializers.ModelSerializer):
     billing_address = serializers.CharField(source ='user.billing_address' , read_only = True)
     color = serializers.CharField(source = 'user_design.color' , read_only = True)
     size = serializers.CharField(source = 'user_design.shirt_size' , read_only = True)
-    image = serializers.ImageField(source = 'user_design.image', read_only=True)
+    image_front = serializers.ImageField(source = 'user_design.image_front', read_only=True)
+    image_back = serializers.ImageField(source = 'user_design.image_back', read_only=True)
     per_unit_price = serializers.CharField(source = 'apparel.product.base_price', read_only=True)
     apparel_name = serializers.CharField(source = 'apparel.product.product_name', read_only=True)
 
@@ -518,13 +524,14 @@ class ViewUserOrderDetailsSerializer(serializers.ModelSerializer):
             'quantity',
             'estimated_delivery_date',
             'order_status',
-            'image',
+            'image_front',
+            'image_back',
             'apparel_name',
             'color',
             'size',
             'payment',
             'per_unit_price',
-            'subtotal',
+            'total_amount',
             ]
         
     def to_representation(self, instance):
@@ -600,7 +607,8 @@ class TrackOrderSerializer(serializers.ModelSerializer):
     print_method = serializers.CharField(source ='user_design.style' ,read_only = True)
     color = serializers.CharField(source = 'user_design.color' , read_only = True)
     size = serializers.CharField(source = 'user_design.shirt_size' , read_only = True)
-    image = serializers.ImageField(source = 'user_design.image', read_only=True)
+    image_front = serializers.ImageField(source = 'user_design.image_front', read_only=True)
+    image_back = serializers.ImageField(source = 'user_design.image_back', read_only=True)
 
     class Meta:
         model = models.Order
@@ -625,11 +633,11 @@ class TrackOrderSerializer(serializers.ModelSerializer):
             'discount_applied',
             'shipping_fee',
             'total_amount',
-            'image'
+            'image_front',
+            'image_back',
             ]
         
     def to_representation(self, instance):
-
         data = super().to_representation(instance)
         user = instance.shipping_address
 
@@ -643,6 +651,7 @@ class TrackOrderSerializer(serializers.ModelSerializer):
             'province_state': user.province_state,
             'country': user.country
         }
+
         return data
  
 

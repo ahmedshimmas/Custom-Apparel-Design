@@ -27,6 +27,8 @@ from project import settings
 User = get_user_model()
 
 class LoginView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
     def post(self, request):
         serializer = serializers.LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -161,8 +163,8 @@ class UserViewset(GenericViewSet, CreateModelMixin):
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
 
-            reset_url = f"{settings.frontend_url}/forgot/{uid}/{token}"
-            subject = 'PASSWORD RESET REQUESET - CAD'
+            reset_url = f"http://{settings.frontend_url}/forgot/{uid}/{token}"
+            subject = 'PASSWORD RESET REQUEST - CAD'
 
             message = f"""
                             <html>
@@ -349,21 +351,45 @@ class UserDesignView(viewsets.ModelViewSet):
     serializer_class = serializers.UserDesignSerializer
     permission_classes = [permissions.IsOwnerOrAdmin]
 
-    def create(self, request, *args, **kwargs):
-        print("RAW REQUEST DATA:", request.data)   
-        print("FILES:", request.FILES)
-
-        #RAW REQUEST DATA: <QueryDict: {'id': ['3'], 'user': ['3'], 'apparel': ['1'], 'design_type': ['ai'], 'prompt': ['A cute cartoon banana character relaxing on a blue and white pool float in a small pool of water. The banana is holding a smartphone and wearing sunglasses.'], 'image': ['http://192.168.10.80:8000/media/user/product-design/images/design_c9kndUW.png'], 'font': ['Arial'], 'style': ['screen_printing'], 'shirt_size': ['4'], 'color': ['red'], 'created_at': ['2025-09-17T06:41:50.682479Z'], 'is_draft': ['true'], 'order_quantity': ['7']}>
-        
-        #FILES: <MultiValueDict: {}>
-        
-        return super().create(request, *args, **kwargs)
     def get_queryset(self):
         if self.request.user.is_superuser:
             return models.UserDesign.objects.all()
         return models.UserDesign.objects.filter(user=self.request.user, is_draft=True)
 
 
+class OrderFromDraftAPIView(APIView):
+    def post(self, request):
+        serializer = serializers.OrderFromDraftSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user_design_id = serializer.validated_data['user_design_id']
+        quantity = serializer.validated_data['quantity']
+
+        try:
+            design = models.UserDesign.objects.get(id=user_design_id, user=request.user, is_draft=True)
+        except models.UserDesign.DoesNotExist:
+            return Response({"error": "Draft not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        order = models.Order.objects.create(
+            user=request.user,
+            user_design=design,
+            design_type=design.design_type,
+            apparel=design.apparel,
+            color=design.color,
+            print_method=design.style,
+            quantity=quantity,
+            shipping_address=request.user.shipping_address
+        )
+
+        design.is_draft = False
+        design.save(update_fields=["is_draft"])
+
+        return Response({
+            "message": "Order placed successfully",
+            "order_id": order.order_id,
+            "total_amount": order.total_amount,
+            "quantity": order.quantity
+        }, status=status.HTTP_201_CREATED)
 
 
 class ShippingAddressView(viewsets.ModelViewSet):
@@ -690,7 +716,7 @@ class ListOrderViewset(GenericViewSet , ListModelMixin):
     def view_order(self , request , pk=None):
         query_set = models.Order.objects.all()
         user = get_object_or_404(query_set , pk=pk)
-        serializer = serializers.TrackOrderSerializer(user)
+        serializer = serializers.TrackOrderSerializer(user, context={'request': request})
         return Response(serializer.data)        
     
     @action(detail=True , methods=['post'] , url_path='cancel_order', permission_classes=[IsAdminUser])
@@ -779,7 +805,7 @@ class ViewUserViewSet(GenericViewSet , RetrieveModelMixin):
             raise serializers.ValidationError({
                 'details': 'user with this id not found'
             })
-        serializer =serializers.ViewUserSerializer(user)
+        serializer =serializers.ViewUserSerializer(user, context={'request': request})
         
         user_orders  = models.Order.objects.filter(user__id=pk)
         total_orders = user_orders.count()
