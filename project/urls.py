@@ -19,6 +19,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView, TokenBlacklistView
 from app.views import *
+from app import webhooks
 
 router = DefaultRouter()
 router.register(r'user', UserViewset, basename='user-auth')
@@ -43,4 +44,7 @@ urlpatterns = [
     path('user/login/', LoginView.as_view()),
     path('user/refresh-token/', TokenRefreshView.as_view()),
     path('user/logout/', TokenBlacklistView.as_view()),
+    path("stripe/webhook/", webhooks.stripe_webhook, name="stripe-webhook"),
+    path("create-checkout-session/<str:order_id>/", CreateCheckoutSessionView.as_view(), name="create-checkout-session"),
 ]
+

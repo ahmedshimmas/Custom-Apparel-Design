@@ -810,3 +810,88 @@ class ViewUserViewSet(GenericViewSet , RetrieveModelMixin):
 #             serializer.save()
 #             return Response({'message':'Product has been created succesfully','data':serializer.data} , status=status.HTTP_201_CREATED)
 #         return Response({'Message':serializer.data} , status=status.HTTP_400_BAD_REQUEST)
+
+
+
+from django.shortcuts import redirect
+from django.conf import settings
+from django.views import View
+from django.http import JsonResponse
+import stripe
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CreateCheckoutSessionView(View):
+    def post(self, request, *args, **kwargs):
+        order_id = kwargs.get("order_id")
+        
+        order = models.Order.objects.get(id=order_id)
+
+
+
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "unit_amount": int(order.total_amount * 100),  # Stripe expects cents
+                    "product_data": {
+                        "name": f"Order {order.id}",
+                    },
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url="http://localhost:5173/payment/success?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url="http://localhost:5173/payment/cancel",
+            metadata={"order_id": order.id},
+        )
+
+        # return JsonResponse({"id": checkout_session.id})
+        return JsonResponse({
+            "id": checkout_session.id,
+            "url": checkout_session.url,   # 👈 this is the redirect link
+            })
+    
+
+from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse
+@csrf_exempt
+def stripe_webhook(request):
+    payload = request.body
+    sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
+    event = None 
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, settings.STRIPE_WEBHOOK_KEY
+        )
+    except ValueError:
+        return HttpResponse(status=400)
+    except stripe.error.SignatureVerificationError:
+        return HttpResponse(status=400)
+
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        # Find the order using session metadata
+        order_id = session.get("metadata", {}).get("order_id")
+        print("inside babes")
+        if order_id:
+            order = models.Order.objects.get(id=order_id)
+            print("----------",order.id)
+            order.payment = choices.PaymentStatus.PAID
+            order.save()
+    if event["type"] == "payment_intent.payment_failed":
+        print("failed")
+        intent = event["data"]["object"]
+        order_id = intent.get("metadata", {}).get("order_id")
+        if order_id:
+            order = models.Order.objects.get(id=order_id)
+            order.payment = choices.PaymentStatus.FAILED
+            order.save()        
+
+    return HttpResponse(status=200)    

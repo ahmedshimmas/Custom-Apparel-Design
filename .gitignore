@@ -29,3 +29,7 @@ staticfiles/
 Thumbs.db
 *.db
 *.DS_Store
+
+venv
+
+project/settings.py
