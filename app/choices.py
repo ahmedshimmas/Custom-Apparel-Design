@@ -49,5 +49,6 @@ class OrderTrackingStatus(TextChoices):
 class PaymentStatus(TextChoices):
     PAID = 'Paid', 'PAID'
     UNPAID = 'Unpaid', 'UNPAID'
+    FAILED = "Failed", "FAILED"
 
 
