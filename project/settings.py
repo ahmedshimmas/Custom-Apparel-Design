@@ -42,9 +42,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'app',
     'corsheaders',
-    'django_extensions'
+    'django_extensions',
+    'app.apps.AppConfigs'    
 ]
 
 MIDDLEWARE = [
@@ -188,5 +188,3 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 STRIPE_WEBHOOK_KEY = os.getenv('STRIPE_WEBHOOK_KEY')
-
-print(STRIPE_WEBHOOK_KEY)

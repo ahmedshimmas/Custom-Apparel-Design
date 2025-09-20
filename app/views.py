@@ -18,11 +18,12 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import EmailMultiAlternatives
 from django.db.models import Sum, F
 from django.db.models.functions import TruncWeek, TruncMonth, TruncQuarter, TruncYear
-
+from django.contrib.auth import login
 from app import models, serializers, choices, utils
 from app import permissions
 from .pagination import CustomPagination
 from project.settings import frontend_url
+from django.contrib.auth.signals import user_logged_in, user_login_failed, user_logged_out
 
 User = get_user_model()
 
@@ -68,7 +69,7 @@ class LoginView(APIView):
         tokens = utils.get_tokens_for_user(user)
 
         shipping = getattr(user, "shipping_address", None)
-
+        login(request, user)
         return Response({
             **tokens,
             "user": {
