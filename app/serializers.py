@@ -371,7 +371,7 @@ class UserDesignSerializer(serializers.ModelSerializer):
         user = self.context['request'].user 
         validated_data['user'] = user 
 
-        quantity = validated_data.pop('order_quantity', None)
+        quantity = validated_data.pop('order_quantity', 1)
 
         if not validated_data.get('is_draft', True):
             if not hasattr(user, 'shipping_address'):

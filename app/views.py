@@ -22,7 +22,7 @@ from django.db.models.functions import TruncWeek, TruncMonth, TruncQuarter, Trun
 from app import models, serializers, choices, utils
 from app import permissions
 from .pagination import CustomPagination
-from project import settings
+from project.settings import frontend_url
 
 User = get_user_model()
 
@@ -163,7 +163,7 @@ class UserViewset(GenericViewSet, CreateModelMixin):
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
 
-            reset_url = f"http://{settings.frontend_url}/forgot/{uid}/{token}"
+            reset_url = f"http://{frontend_url}/forgot/{uid}/{token}"
             subject = 'PASSWORD RESET REQUEST - CAD'
 
             message = f"""
@@ -432,143 +432,9 @@ class OrderView(viewsets.ModelViewSet):
 
 
 
-# class UserDesignViewset(viewsets.ModelViewSet):
-#     queryset = models.UserDesign.objects.all()
-#     serializer_class = serializers.UserDesignSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def get_queryset(self):
-#         if self.request.user.role == "admin":
-#             return super().get_queryset()
-#         else:
-#             return models.UserDesign.objects.filter(user=self.request.user)
-    
-#     def perform_create(self, serializer):
-#         return serializer.save(user=self.request.user)
-
-
-
-
-# class UserPortfolioViewset(GenericViewSet, ListModelMixin):
-#     serializer_class = serializers.UserDesignSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def get_queryset(self):
-#         return models.UserDesign.objects.filter(user=self.request.user)
-
-
-
-
-# class OrderViewset(viewsets.ModelViewSet):
-#     queryset = models.Order.objects.all()
-#     serializer_class = serializers.OrderSerializer
-
-#     def get_queryset(self):
-#         if self.request.user.role == "admin":
-#             return super().get_queryset()
-#         else:
-#             return models.Order.objects.filter(user=self.request.user)
-
-
-# #admin dashboard
-# class AdminDashboardViewset(viewsets.ViewSet):
-#     permission_classes = [IsAuthenticated, IsAdminUser]
-#     http_method_names = ['get']
-
-#     def list(self, request):
-#         if not request.user.is_staff:
-#             return Response(
-#                 {'detail': 'You do not have permission to access this resource.'},
-#                 status=status.HTTP_403_FORBIDDEN
-#             )
-        
-#         # Calculate monthly revenue
-#         monthly_revenue = models.Order.objects.filter(
-#             order_date__month=timezone.now().month,
-#             order_date__year=timezone.now().year,
-#             is_active=True
-#             ).aggregate(total = Sum('product__price'))['total'] or 0 #the ['total'] here returns only the value of variable total we declared in aggregate, without this ['total'] the whole dictionary will be returned rather than just the value, etc {'total': 123} will be returned rather than just 123
-
-#         new_apparel_designs = models.Product.objects.filter(created_at__gte=timezone.now().month).count()
-#         active_orders = models.Order.objects.filter(is_active=True).count()
-
-#         payments_received = models.Order.objects.filter(
-#             status='Completed'
-#             ).aggregate(
-#                 total_payments = Sum('product__price'))['total_payments'] or 0
-        
-#         new_customers = models.User.objects.filter(created_at__gte=timezone.now().month).count()
-#         cancelled_orders = models.Order.objects.filter(status='Cancelled').count()
-
-#         return Response(
-#             {
-#             'monthly_revenue': monthly_revenue,
-#             'new_apparel_designs': new_apparel_designs,
-#             'active_orders': active_orders,
-#             'payments_received': payments_received,
-#             'new_customers': new_customers,
-#             'cancelled_orders': cancelled_orders
-
-#             }, 
-#             status=status.HTTP_200_OK
-#         )
-
-# #order revenue
-# class OrderRevenueAdminDashboardView(viewsets.ViewSet):
-#     permission_classes = [IsAuthenticated, IsAdminUser]
-#     http_method_names = ['get']
-
-#     def list(self, request):
-#         filter = request.query_params.get('filter', '1M')
-#         today = timezone.now().date()
-
-#         if filter == '1M':
-#             start_date = today - timedelta(days=30)
-#         elif filter == '3M':
-#             start_date = today - timedelta(days=60)
-#         elif filter == '6M':
-#             start_date = today - timedelta(days=180)
-#         elif filter == '1Y':
-#             start_date =  today - timedelta(days=365)
-#         else:
-#             start_date = None
-        
-#         query = models.Order.objects.filter(order_date__gte = start_date) if start_date else models.Order.objects.all()
-#         revenue = query.aggregate(
-#             total = F('product__price') * F('product__quantity')
-#         )['total'] or 0
-                
-#         return Response(
-#             {
-#                 'order_revenue': revenue
-#             }
-#         )    
-
-
-# #recent orders api in dashboard
-# class RecentOrderAdminDashboardView(viewsets.ViewSet):
-#     permission_classes = [IsAuthenticated, IsAdminUser]
-#     http_method_names = ['get']
-
-#     def list(self, request):
-#         recent_orders = models.Order.objects.filter(is_active=True).order_by('-order_date')[:5]
-#         serializer = serializers.OrderSerializer(recent_orders, many=True)
-#         return Response(
-#         {
-#         'recent_orders': serializer.data,
-#         }, 
-#         status=status.HTTP_200_OK
-#         )
-
-# class PricingRuleViewSet(viewsets.ModelViewSet):
-#     queryset = models.PricingRules.objects.all()
-#     serializer_class = serializers.PricingRuleSerializer
-#     permission_classes = [IsAdminUser]
-
-
-
-
 # -------------------------ADMIN FLOW--------------------------
+
+
 
 class AdminDashboardViewset(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, IsAdminUser]
@@ -591,8 +457,6 @@ class AdminDashboardViewset(viewsets.ViewSet):
         new_customers = models.User.objects.filter(created_at__month = now.month).count()
         cancelled_orders = models.Order.objects.filter(order_status = 'Cancelled').count()
 
-        # recent_orders = models.Order.objects.filter(is_active=True).order_by('-created_at')[:5]
-        # serializer = serializers.UserOrderSerializer(recent_orders, many=True)
 
         # ---- 1M (weekly revenue for current month) ----
         orders_this_month = models.Order.objects.filter(
@@ -820,23 +684,6 @@ class ViewUserViewSet(GenericViewSet , RetrieveModelMixin):
             "list_of_recent_orders":orders
             },  status=status.HTTP_200_OK
             )
-    
-  
-# class ProductCatalogViewset(viewsets.ModelViewSet):
-#     permission_classes = [IsAdminUser , IsAuthenticated]
-#     pagination_class = CustomPagination
-
-#     queryset = models.ApparelProduct.objects.all()
-#     serializer_class = serializers.ProductCatalogSerializer
-
-#     @action(detail=False , methods=['post'] , url_path='add_new_product')
-#     def add_product(self , request):
-#         serializer = serializers.ApparelProductSerializer(data = request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response({'message':'Product has been created succesfully','data':serializer.data} , status=status.HTTP_201_CREATED)
-#         return Response({'Message':serializer.data} , status=status.HTTP_400_BAD_REQUEST)
-
 
 
 from django.shortcuts import redirect
@@ -850,80 +697,6 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-
-# @method_decorator(csrf_exempt, name='dispatch')
-# class CreateCheckoutSessionView(View):
-#     def post(self, request, *args, **kwargs):
-#         order_id = kwargs.get("order_id")
-        
-#         order = models.Order.objects.get(id=order_id)
-
-
-
-#         checkout_session = stripe.checkout.Session.create(
-#             payment_method_types=['card'],
-#             line_items=[{
-#                 "price_data": {
-#                     "currency": "usd",
-#                     "unit_amount": int(order.total_amount * 100),  # Stripe expects cents
-#                     "product_data": {
-#                         "name": f"Order {order.id}",
-#                     },
-#                 },
-#                 "quantity": 1,
-#             }],
-#             mode="payment",
-#             success_url="http://localhost:5173/payment/success?session_id={CHECKOUT_SESSION_ID}",
-#             cancel_url="http://localhost:5173/payment/cancel",
-#             metadata={"order_id": order.id},
-#         )
-
-#         # return JsonResponse({"id": checkout_session.id})
-#         return JsonResponse({
-#             "id": checkout_session.id,
-#             "url": checkout_session.url,   # 👈 this is the redirect link
-#             })
-    
-
-# from django.views.decorators.csrf import csrf_exempt
-# from django.http import HttpResponse
-# @csrf_exempt
-# def stripe_webhook(request):
-#     payload = request.body
-#     sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
-#     event = None 
-#     order_id = session.get("metadata", {}).get("order_id")
-
-#     try:
-#         event = stripe.Webhook.construct_event(
-#             payload, sig_header, settings.STRIPE_WEBHOOK_KEY
-#         )
-#     except ValueError:
-#         return HttpResponse(status=400)
-#     except stripe.error.SignatureVerificationError:
-#         return HttpResponse(status=400)
-
-#     if event["type"] == "checkout.session.completed":
-#         session = event["data"]["object"]
-#         # Find the order using session metadata
-#         # order_id = session.get("metadata", {}).get("order_id")
-#         print("inside babes")
-#         if order_id:
-#             order = models.Order.objects.get(id=order_id)
-#             print("----------",order.id)
-#             order.payment = choices.PaymentStatus.PAID
-#             order.save()
-#     if event["type"] == "payment_intent.payment_failed":
-#         print("failed")
-#         intent = event["data"]["object"]
-#         order_id = intent.get("metadata", {}).get("order_id")
-#         if order_id:
-#             order = models.Order.objects.get(id=order_id)
-#             order.payment = choices.PaymentStatus.FAILED
-#             order.save()        
-
-#     return HttpResponse(status=200)    
-
 
 
 @method_decorator(csrf_exempt, name='dispatch')
