@@ -4,7 +4,7 @@ services:
   django:
     build: .
     container_name: "CAD_web"
-    entrypoint: ["/entrypoint.sh"]
+    command: sh -c "python3 manage.py makemigrations --noinput && python3 manage.py migrate --noinput && python3 manage.py runserver 0.0.0.0:8000 && python3 manage.py create_superuser"
     volumes:
       - .:/app
     ports:
@@ -46,7 +46,7 @@ services:
     image: redis:7
     container_name: "CAD_redis"
     ports:
-      - "6378:6379"
+      - "6380:6379"
     env_file:
       - .env
     

@@ -708,19 +708,4 @@ class AdminUserViewOrdersSerializer(serializers.ModelSerializer):
             'payment',
             'order_status'
         ]
-
-
-# class ProductCatalogSerializer(serializers.ModelSerializer):
-#     base_price = serializers.CharField(source = 'pricing_rule.base_price')
-#     class Meta:
-#         model = models.ApparelProduct
-#         fields = [
-#             'product_id',
-#             'product_name',
-#             'sizes_available',
-#             'color_options',
-#             'base_price',
-#             'print_methods_supported',
-#             'is_active',
-#         ]
     
